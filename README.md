@@ -1,16 +1,48 @@
-# React + Vite
+# Cafe POS System - FrontEnd ☕
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern Point of Sale (POS) system frontend built with React and Vite.
 
-Currently, two official plugins are available:
+## 🚀 Setup Instructions
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1. Clone & Install
+```bash
+git clone [https://github.com/TUONSAMON/Cafe_POS_System_FrontEnd.git](https://github.com/TUONSAMON/Cafe_POS_System_FrontEnd.git)
+cd Cafe_POS_System_FrontEnd
+npm install
 
-## React Compiler
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+2. Environment Variables
+This project requires a .env file for API configuration. Since .env is ignored for security, create a new one in the root folder:
 
-## Expanding the ESLint configuration
+Create a file named .env
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Add backend URL:
+VITE_API_URL=http://localhost:8080
+VITE_BACKEND_URL=http://localhost:8080
+VITE_DEFAULT_LANG=en
+
+3. Run Development Server
+Bash
+npm run dev
+🛠 Features Included
+Authentication: Login and AuthContext management.
+
+Multi-language: Language switching via LangContext.
+
+Core Pages: Inventory management and Order screen.
+
+Layout: Responsive sidebar/navigation structure.
+
+👥 Collaboration
+Always git pull origin main before start coding to get our teammates' updates.
+
+
+---
+
+### Push it to GitHub
+After saving the file, run these three commands in your terminal to show the changes on GitHub:
+
+```bash
+git add README.md
+git commit -m "docs: update readme with setup and features"
+git push origin main

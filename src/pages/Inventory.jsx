@@ -1,8 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
+import translations from '../translations/index';
 import { useLang } from '../context/LangContext';
-import { Search, Plus, Edit2, Trash2, Filter, ChevronDown, ImageIcon, Upload, X, Save, Tag, DollarSign, Calendar, Clock, Printer, Download, FileText } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  Filter,
+  ChevronDown,
+  ImageIcon,
+  Upload,
+  X,
+  Tag,
+  DollarSign,
+  Clock,
+  Printer,
+  Download
+} from 'lucide-react';
 
-// Helper functions from OrderScreen
+// Helper functions
 const getCurrentDate = () => {
   return new Date().toISOString();
 };
@@ -12,14 +28,14 @@ const loadProductsFromStorage = () => {
     const savedProducts = localStorage.getItem('restaurant_products');
     if (savedProducts) {
       const products = JSON.parse(savedProducts);
-      return products.map(product => ({
+      return products.map((product) => ({
         ...product,
         createdAt: product.createdAt || getCurrentDate(),
         updatedAt: product.updatedAt || getCurrentDate()
       }));
     }
   } catch (error) {
-    console.error("Error loading products:", error);
+    console.error('Error loading products:', error);
   }
   return [];
 };
@@ -28,31 +44,26 @@ const saveProductsToStorage = (products) => {
   try {
     localStorage.setItem('restaurant_products', JSON.stringify(products));
   } catch (error) {
-    console.error("Error saving products:", error);
+    console.error('Error saving products:', error);
   }
 };
 
-const CATEGORIES = [
-  "Coffee",
-  "Beverages",
-  "BBQ",
-  "Snacks",
-  "Deserts",
-];
+const CATEGORIES = ['Coffee', 'Beverages', 'BBQ', 'Snacks', 'Deserts'];
 
 const translateCategory = (c) => {
   const map = {
-    Coffee: "កាហ្វេ",
-    Beverages: "ភេសជ្ជៈ",
-    BBQ: "អាំង",
-    Snacks: "អាហារសម្រន់",
-    Deserts: "នំ",
+    Coffee: 'កាហ្វេ',
+    Beverages: 'ភេសជ្ជៈ',
+    BBQ: 'អាំង',
+    Snacks: 'អាហារសម្រន់',
+    Deserts: 'នំ'
   };
   return map[c] || c;
 };
 
 const formatDate = (dateString, lang = 'en') => {
   const date = new Date(dateString);
+
   if (lang === 'km') {
     return date.toLocaleDateString('km-KH', {
       year: 'numeric',
@@ -60,170 +71,12 @@ const formatDate = (dateString, lang = 'en') => {
       day: 'numeric'
     });
   }
+
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   });
-};
-
-const TRANSLATIONS = {
-  en: {
-    inventory: 'Inventory',
-    addItem: 'Add Item',
-    searchPlaceholder: 'Search inventory...',
-    allCategories: 'All Categories',
-    name: 'Name',
-    category: 'Category',
-    price: 'Price',
-    stock: 'Stock',
-    lastUpdated: 'Last Updated',
-    actions: 'Actions',
-    edit: 'Edit',
-    delete: 'Delete',
-    noProducts: 'No items in inventory',
-    addFirstItem: 'Add your first item to get started',
-    filterByCategory: 'Filter by category',
-    showing: 'Showing',
-    of: 'of',
-    items: 'items',
-    addNewItemTitle: 'Add New Item',
-    editItemTitle: 'Edit Item',
-    itemName: 'Item Name',
-    enterItemName: 'Enter item name',
-    priceLabel: 'Price ($)',
-    itemImage: 'Item Image',
-    imageUrl: 'Image URL',
-    uploadFile: 'Upload File',
-    enterImageUrl: 'Enter image URL',
-    leaveEmpty: 'Leave empty for default image',
-    clickToUpload: 'Click to upload image',
-    fileTypes: 'JPG, PNG, GIF up to 5MB',
-    preview: 'Preview',
-    cancel: 'Cancel',
-    addItemBtn: 'Add Item',
-    updateItem: 'Update Item',
-    save: 'Save',
-    deleteConfirm: 'Are you sure you want to delete this item?',
-    itemDeleted: 'Item deleted successfully!',
-    itemAdded: 'Item added successfully!',
-    itemUpdated: 'Item updated successfully!',
-    enterNamePrice: 'Please enter name and price',
-    selectImageFile: 'Please select an image file',
-    fileTooLarge: 'File size should be less than 5MB',
-    uploadComplete: 'Upload complete!',
-    saving: 'Saving...',
-    englishName: 'English Name',
-    khmerName: 'Khmer Name',
-    enterEnglishName: 'Enter English name',
-    enterKhmerName: 'Enter Khmer name',
-    stockQuantity: 'Stock Quantity',
-    enterStockQuantity: 'Enter stock quantity',
-    lowStock: 'Low Stock',
-    inStock: 'In Stock',
-    outOfStock: 'Out of Stock',
-    printInventory: 'Print Inventory',
-    exportInventory: 'Export to CSV',
-    printReport: 'Print Report',
-    exportReport: 'Export Report',
-    inventoryReport: 'Inventory Report',
-    totalItems: 'Total Items',
-    totalValue: 'Total Value',
-    averagePrice: 'Average Price',
-    lowStockItems: 'Low Stock Items',
-    outOfStockItems: 'Out of Stock Items',
-    printSuccess: 'Inventory report printed successfully!',
-    exportSuccess: 'Inventory exported to CSV successfully!',
-    printDate: 'Print Date',
-    itemId: 'Item ID',
-    description: 'Description',
-    value: 'Value',
-    reportSummary: 'Report Summary',
-    printAll: 'Print All',
-    printSelected: 'Print Selected',
-    selectAll: 'Select All',
-    deselectAll: 'Deselect All',
-    selectedItems: 'selected items',
-    noItemsSelected: 'No items selected for printing',
-  },
-  km: {
-    inventory: 'បញ្ជីទំនិញ',
-    addItem: 'បន្ថែមទំនិញ',
-    searchPlaceholder: 'ស្វែងរកក្នុងបញ្ជីទំនិញ...',
-    allCategories: 'ប្រភេទទាំងអស់',
-    name: 'ឈ្មោះ',
-    category: 'ប្រភេទ',
-    price: 'តម្លៃ',
-    stock: 'ស្តុក',
-    lastUpdated: 'កែសម្រួលចុងក្រោយ',
-    actions: 'សកម្មភាព',
-    edit: 'កែសម្រួល',
-    delete: 'លុប',
-    noProducts: 'គ្មានទំនិញក្នុងស្តុក',
-    addFirstItem: 'បន្ថែមទំនិញដំបូងរបស់អ្នកដើម្បីចាប់ផ្តើម',
-    filterByCategory: 'តម្រងតាមប្រភេទ',
-    showing: 'កំពុងបង្ហាញ',
-    of: 'ក្នុងចំណោម',
-    items: 'ទំនិញ',
-    addNewItemTitle: 'បន្ថែមទំនិញថ្មី',
-    editItemTitle: 'កែសម្រួលទំនិញ',
-    itemName: 'ឈ្មោះទំនិញ',
-    enterItemName: 'បញ្ចូលឈ្មោះទំនិញ',
-    priceLabel: 'តម្លៃ ($)',
-    itemImage: 'រូបភាពទំនិញ',
-    imageUrl: 'URL រូបភាព',
-    uploadFile: 'ផ្ទុកឯកសារ',
-    enterImageUrl: 'បញ្ចូល URL រូបភាព',
-    leaveEmpty: 'ទុកទទេសម្រាប់រូបភាពលំនាំដើម',
-    clickToUpload: 'ចុចដើម្បីផ្ទុករូបភាព',
-    fileTypes: 'JPG, PNG, GIF រហូតដល់ 5MB',
-    preview: 'មើលជាមុន',
-    cancel: 'បោះបង់',
-    addItemBtn: 'បន្ថែមទំនិញ',
-    updateItem: 'ធ្វើបច្ចុប្បន្នភាពទំនិញ',
-    save: 'រក្សាទុក',
-    deleteConfirm: 'តើអ្នកប្រាកដថាចង់លុបទំនិញនេះឬ?',
-    itemDeleted: 'ទំនិញត្រូវបានលុបដោយជោគជ័យ!',
-    itemAdded: 'ទំនិញត្រូវបានបន្ថែមដោយជោគជ័យ!',
-    itemUpdated: 'ទំនិញត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ!',
-    enterNamePrice: 'សូមបញ្ចូលឈ្មោះ និងតម្លៃ',
-    selectImageFile: 'សូមជ្រើសរើសឯកសាររូបភាព',
-    fileTooLarge: 'ទំហំឯកសារគួរតែតូចជាង 5MB',
-    uploadComplete: 'បានផ្ទុករូបភាពដោយជោគជ័យ!',
-    saving: 'កំពុងរក្សាទុក...',
-    englishName: 'ឈ្មោះជាភាសាអង់គ្លេស',
-    khmerName: 'ឈ្មោះជាភាសាខ្មែរ',
-    enterEnglishName: 'បញ្ចូលឈ្មោះជាភាសាអង់គ្លេស',
-    enterKhmerName: 'បញ្ចូលឈ្មោះជាភាសាខ្មែរ',
-    stockQuantity: 'ចំនួនស្តុក',
-    enterStockQuantity: 'បញ្ចូលចំនួនស្តុក',
-    lowStock: 'ស្តុកទាប',
-    inStock: 'មានស្តុក',
-    outOfStock: 'អស់ស្តុក',
-    printInventory: 'បោះពុម្ពបញ្ជីទំនិញ',
-    exportInventory: 'នាំចេញទៅ CSV',
-    printReport: 'បោះពុម្ពរបាយការណ៍',
-    exportReport: 'នាំចេញរបាយការណ៍',
-    inventoryReport: 'របាយការណ៍បញ្ជីទំនិញ',
-    totalItems: 'ទំនិញសរុប',
-    totalValue: 'តម្លៃសរុប',
-    averagePrice: 'តម្លៃមធ្យម',
-    lowStockItems: 'ទំនិញស្តុកទាប',
-    outOfStockItems: 'ទំនិញអស់ស្តុក',
-    printSuccess: 'របាយការណ៍បញ្ជីទំនិញត្រូវបានបោះពុម្ពដោយជោគជ័យ!',
-    exportSuccess: 'បញ្ជីទំនិញត្រូវបាននាំចេញទៅ CSV ដោយជោគជ័យ!',
-    printDate: 'កាលបរិច្ឆេទបោះពុម្ព',
-    itemId: 'លេខសម្គាល់ទំនិញ',
-    description: 'ការពិពណ៌នា',
-    value: 'តម្លៃ',
-    reportSummary: 'សង្ខេបរបាយការណ៍',
-    printAll: 'បោះពុម្ពទាំងអស់',
-    printSelected: 'បោះពុម្ពដែលបានជ្រើសរើស',
-    selectAll: 'ជ្រើសរើសទាំងអស់',
-    deselectAll: 'លុបការជ្រើសរើសទាំងអស់',
-    selectedItems: 'ទំនិញដែលបានជ្រើសរើស',
-    noItemsSelected: 'គ្មានទំនិញដែលបានជ្រើសរើសសម្រាប់បោះពុម្ព',
-  }
 };
 
 export default function Inventory() {
@@ -242,66 +95,63 @@ export default function Inventory() {
     stock: 0,
     image: null,
     imagePreview: null,
-    imageUrl: '',
+    imageUrl: ''
   });
   const [uploadMethod, setUploadMethod] = useState('url');
   const [isUploading, setIsUploading] = useState(false);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const fileInputRef = useRef(null);
 
-  const t = (key) => TRANSLATIONS[lang][key] || key;
+  const t = (key) => translations?.[lang]?.inventory?.[key] || key;
 
-  // Save products to localStorage whenever products change
   useEffect(() => {
     saveProductsToStorage(products);
   }, [products]);
 
-  // Filter products based on search and category
   useEffect(() => {
     let filtered = [...products];
-    
-    // Apply search filter
+
     if (search) {
       const searchLower = search.toLowerCase();
-      filtered = filtered.filter(p => 
-        p.name.en.toLowerCase().includes(searchLower) ||
-        p.name.km.toLowerCase().includes(searchLower)
+      filtered = filtered.filter(
+        (p) =>
+          p.name.en.toLowerCase().includes(searchLower) ||
+          p.name.km.toLowerCase().includes(searchLower)
       );
     }
-    
-    // Apply category filter
+
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(p => p.category === selectedCategory);
+      filtered = filtered.filter((p) => p.category === selectedCategory);
     }
-    
+
     setFilteredProducts(filtered);
   }, [products, search, selectedCategory]);
 
-  // Calculate statistics
   const calculateStats = () => {
-    const stats = {
+    return {
       totalItems: filteredProducts.length,
-      totalValue: filteredProducts.reduce((sum, p) => sum + (p.price * p.stock), 0),
-      averagePrice: filteredProducts.length > 0 
-        ? filteredProducts.reduce((sum, p) => sum + p.price, 0) / filteredProducts.length 
-        : 0,
-      lowStockItems: filteredProducts.filter(p => p.stock <= 10 && p.stock > 0).length,
-      outOfStockItems: filteredProducts.filter(p => p.stock === 0).length,
-      inStockItems: filteredProducts.filter(p => p.stock > 10).length,
+      totalValue: filteredProducts.reduce((sum, p) => sum + p.price * p.stock, 0),
+      averagePrice:
+        filteredProducts.length > 0
+          ? filteredProducts.reduce((sum, p) => sum + p.price, 0) / filteredProducts.length
+          : 0,
+      lowStockItems: filteredProducts.filter((p) => p.stock <= 10 && p.stock > 0).length,
+      outOfStockItems: filteredProducts.filter((p) => p.stock === 0).length,
+      inStockItems: filteredProducts.filter((p) => p.stock > 10).length
     };
-    return stats;
   };
 
   const stats = calculateStats();
 
-  // Handle selection
   const toggleSelectItem = (id) => {
     const newSelected = new Set(selectedItems);
+
     if (newSelected.has(id)) {
       newSelected.delete(id);
     } else {
       newSelected.add(id);
     }
+
     setSelectedItems(newSelected);
   };
 
@@ -309,12 +159,13 @@ export default function Inventory() {
     if (selectedItems.size === filteredProducts.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(filteredProducts.map(p => p.id)));
+      setSelectedItems(new Set(filteredProducts.map((p) => p.id)));
     }
   };
 
   const openAddItemModal = () => {
     setModalMode('add');
+    setEditingItemId(null);
     setNewItem({
       name: { en: '', km: '' },
       price: '',
@@ -322,9 +173,10 @@ export default function Inventory() {
       stock: 0,
       image: null,
       imagePreview: null,
-      imageUrl: '',
+      imageUrl: ''
     });
     setUploadMethod('url');
+    setIsUploading(false);
     setShowItemModal(true);
   };
 
@@ -332,136 +184,151 @@ export default function Inventory() {
     setModalMode('edit');
     setEditingItemId(product.id);
     setNewItem({
-      name: { en: product.name.en || '', km: product.name.km || product.name.en || '' },
+      name: {
+        en: product.name.en || '',
+        km: product.name.km || product.name.en || ''
+      },
       price: product.price.toString(),
       category: product.category,
       stock: product.stock || 0,
       image: null,
       imagePreview: null,
-      imageUrl: product.image || '',
+      imageUrl: product.image || ''
     });
     setUploadMethod('url');
+    setIsUploading(false);
     setShowItemModal(true);
   };
 
   const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (!file.type.match('image.*')) {
-        alert(t('selectImageFile'));
-        return;
-      }
-      
-      if (file.size > 5 * 1024 * 1024) {
-        alert(t('fileTooLarge'));
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNewItem({
-          ...newItem,
-          image: file,
-          imagePreview: e.target.result,
-          imageUrl: ''
-        });
-      };
-      reader.readAsDataURL(file);
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.match('image.*')) {
+      alert(t('selectImageFile'));
+      return;
     }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert(t('fileTooLarge'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setNewItem((prev) => ({
+        ...prev,
+        image: file,
+        imagePreview: e.target.result,
+        imageUrl: ''
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const resetImage = () => {
-    setNewItem({
-      ...newItem,
+    setNewItem((prev) => ({
+      ...prev,
       image: null,
       imagePreview: null,
       imageUrl: ''
-    });
+    }));
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const openFileInput = () => {
-    fileInputRef.current.click();
+    fileInputRef.current?.click();
   };
 
   const handleSaveItem = async () => {
-    // Validate inputs
     if (!newItem.name.en || !newItem.price) {
       alert(t('enterNamePrice'));
       return;
     }
 
-    // Ensure Khmer name exists (use English name as fallback)
     const itemName = {
       en: newItem.name.en,
       km: newItem.name.km || newItem.name.en
     };
 
     let imageUrl = newItem.imageUrl;
-    
-    // Handle file upload
+
     if (uploadMethod === 'file' && newItem.image) {
       setIsUploading(true);
+
       try {
-        // Simulate upload delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
         if (newItem.imagePreview) {
           imageUrl = newItem.imagePreview;
           alert(t('uploadComplete'));
         }
       } catch (error) {
-        alert(lang === 'en' ? 'Failed to upload image' : 'ផ្ទុករូបភាពមិនជោគជ័យ');
+        alert(t('uploadFailed'));
         setIsUploading(false);
         return;
       }
+
       setIsUploading(false);
     } else if (!imageUrl) {
-      // Use default image based on category
       const defaultImages = {
-        Coffee: 'https://images.unsplash.com/photo-1513118171418-46b8c4e07e43?w-300&h=200&fit=crop',
-        Beverages: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w-300&h=200&fit=crop',
-        BBQ: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w-300&h=200&fit=crop',
-        Snacks: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w-300&h=200&fit=crop',
-        Deserts: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w-300&h=200&fit=crop',
+        Coffee:
+          'https://images.unsplash.com/photo-1513118171418-46b8c4e07e43?w-300&h=200&fit=crop',
+        Beverages:
+          'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w-300&h=200&fit=crop',
+        BBQ:
+          'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w-300&h=200&fit=crop',
+        Snacks:
+          'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w-300&h=200&fit=crop',
+        Deserts:
+          'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w-300&h=200&fit=crop'
       };
+
       imageUrl = defaultImages[newItem.category] || defaultImages.Coffee;
     }
 
     const currentTime = getCurrentDate();
 
     if (modalMode === 'add') {
-      // Add new item
-      const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+      const newId =
+        products.length > 0 ? Math.max(...products.map((p) => p.id)) + 1 : 1;
+
       const newProduct = {
         id: newId,
         category: newItem.category,
         name: itemName,
         price: parseFloat(newItem.price),
-        stock: parseInt(newItem.stock) || 0,
+        stock: parseInt(newItem.stock, 10) || 0,
         image: imageUrl,
         createdAt: currentTime,
-        updatedAt: currentTime,
+        updatedAt: currentTime
       };
 
       setProducts([newProduct, ...products]);
       alert(t('itemAdded'));
     } else {
-      // Edit existing item
-      setProducts(products.map(p => 
-        p.id === editingItemId ? {
-          ...p,
-          category: newItem.category,
-          name: itemName,
-          price: parseFloat(newItem.price),
-          stock: parseInt(newItem.stock) || 0,
-          image: imageUrl,
-          updatedAt: currentTime,
-        } : p
-      ));
+      setProducts(
+        products.map((p) =>
+          p.id === editingItemId
+            ? {
+                ...p,
+                category: newItem.category,
+                name: itemName,
+                price: parseFloat(newItem.price),
+                stock: parseInt(newItem.stock, 10) || 0,
+                image: imageUrl,
+                updatedAt: currentTime
+              }
+            : p
+        )
+      );
       alert(t('itemUpdated'));
     }
 
-    // Reset form and close modal
     setNewItem({
       name: { en: '', km: '' },
       price: '',
@@ -469,41 +336,59 @@ export default function Inventory() {
       stock: 0,
       image: null,
       imagePreview: null,
-      imageUrl: '',
+      imageUrl: ''
     });
     setUploadMethod('url');
     setShowItemModal(false);
+    setEditingItemId(null);
   };
 
   const handleDeleteItem = (id) => {
     if (window.confirm(t('deleteConfirm'))) {
-      setProducts(products.filter(p => p.id !== id));
+      setProducts(products.filter((p) => p.id !== id));
+
+      setSelectedItems((prev) => {
+        const updated = new Set(prev);
+        updated.delete(id);
+        return updated;
+      });
+
       alert(t('itemDeleted'));
     }
   };
 
   const getStockStatus = (stock) => {
-    if (stock === 0) return { text: t('outOfStock'), color: 'bg-red-100 text-red-800' };
-    if (stock <= 10) return { text: t('lowStock'), color: 'bg-yellow-100 text-yellow-800' };
+    if (stock === 0) {
+      return { text: t('outOfStock'), color: 'bg-red-100 text-red-800' };
+    }
+    if (stock <= 10) {
+      return { text: t('lowStock'), color: 'bg-yellow-100 text-yellow-800' };
+    }
     return { text: t('inStock'), color: 'bg-green-100 text-green-800' };
   };
 
-  // Print Inventory Report
   const printInventoryReport = (printAll = true) => {
-    const itemsToPrint = printAll 
-      ? filteredProducts 
-      : filteredProducts.filter(p => selectedItems.has(p.id));
-    
+    const itemsToPrint = printAll
+      ? filteredProducts
+      : filteredProducts.filter((p) => selectedItems.has(p.id));
+
     if (!printAll && itemsToPrint.length === 0) {
       alert(t('noItemsSelected'));
       return;
     }
 
     const printWindow = window.open('', '_blank');
+
+    if (!printWindow) {
+      alert('Popup blocked');
+      return;
+    }
+
     const printDate = new Date().toLocaleString();
-    const stats = calculateStats();
-    
-    const itemsList = itemsToPrint.map(product => `
+
+    const itemsList = itemsToPrint
+      .map(
+        (product) => `
       <tr class="border-b">
         <td class="py-2 px-3">${product.id}</td>
         <td class="py-2 px-3">
@@ -515,7 +400,9 @@ export default function Inventory() {
         <td class="py-2 px-3 text-right">${product.stock}</td>
         <td class="py-2 px-3 text-right">$${(product.price * product.stock).toFixed(2)}</td>
       </tr>
-    `).join('');
+    `
+      )
+      .join('');
 
     const reportHTML = `
       <!DOCTYPE html>
@@ -614,10 +501,10 @@ export default function Inventory() {
         <div class="header">
           <h1>${t('inventoryReport')}</h1>
           <div>${t('printDate')}: ${printDate}</div>
-          <div>${lang === 'en' ? 'Restaurant POS System' : 'ប្រព័ន្ធទូទាត់ភោជនីយដ្ឋាន'}</div>
+          <div>${t('restaurantPosSystem')}</div>
           ${!printAll ? `<div class="selected-info">${itemsToPrint.length} ${t('selectedItems')}</div>` : ''}
         </div>
-        
+
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-label">${t('totalItems')}</div>
@@ -625,22 +512,25 @@ export default function Inventory() {
           </div>
           <div class="stat-card">
             <div class="stat-label">${t('totalValue')}</div>
-            <div class="stat-value">$${itemsToPrint.reduce((sum, p) => sum + (p.price * p.stock), 0).toFixed(2)}</div>
+            <div class="stat-value">$${itemsToPrint.reduce((sum, p) => sum + p.price * p.stock, 0).toFixed(2)}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">${t('averagePrice')}</div>
-            <div class="stat-value">$${(itemsToPrint.reduce((sum, p) => sum + p.price, 0) / (itemsToPrint.length || 1)).toFixed(2)}</div>
+            <div class="stat-value">$${(
+              itemsToPrint.reduce((sum, p) => sum + p.price, 0) /
+              (itemsToPrint.length || 1)
+            ).toFixed(2)}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">${t('lowStockItems')} (≤10)</div>
-            <div class="stat-value">${itemsToPrint.filter(p => p.stock <= 10 && p.stock > 0).length}</div>
+            <div class="stat-value">${itemsToPrint.filter((p) => p.stock <= 10 && p.stock > 0).length}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">${t('outOfStockItems')}</div>
-            <div class="stat-value">${itemsToPrint.filter(p => p.stock === 0).length}</div>
+            <div class="stat-value">${itemsToPrint.filter((p) => p.stock === 0).length}</div>
           </div>
         </div>
-        
+
         <h2>${t('inventory')}</h2>
         <table>
           <thead>
@@ -657,17 +547,17 @@ export default function Inventory() {
             ${itemsList}
           </tbody>
         </table>
-        
+
         <div class="footer">
-          <div>${lang === 'en' ? 'Generated by Restaurant POS System' : 'បង្កើតដោយប្រព័ន្ធទូទាត់ភោជនីយដ្ឋាន'}</div>
+          <div>${t('generatedBySystem')}</div>
           <div>© ${new Date().getFullYear()} - ${printDate}</div>
         </div>
-        
+
         <div class="print-button no-print">
           <button onclick="window.print()">${t('printReport')}</button>
-          <button onclick="window.close()" style="background: #6b7280">${lang === 'en' ? 'Close' : 'បិទ'}</button>
+          <button onclick="window.close()" style="background: #6b7280">${t('close')}</button>
         </div>
-        
+
         <script>
           setTimeout(() => {
             window.print();
@@ -679,17 +569,16 @@ export default function Inventory() {
 
     printWindow.document.write(reportHTML);
     printWindow.document.close();
-    
+
     setTimeout(() => {
       alert(t('printSuccess'));
     }, 1000);
   };
 
-  // Export to CSV
   const exportToCSV = () => {
     const csvContent = [
       ['ID', 'English Name', 'Khmer Name', 'Category', 'Price ($)', 'Stock', 'Value ($)', 'Last Updated'],
-      ...filteredProducts.map(product => [
+      ...filteredProducts.map((product) => [
         product.id,
         product.name.en,
         product.name.km,
@@ -707,8 +596,10 @@ export default function Inventory() {
       ['Low Stock Items (≤10)', stats.lowStockItems],
       ['Out of Stock Items', stats.outOfStockItems],
       ['In Stock Items', stats.inStockItems],
-      ['Report Generated', new Date().toLocaleString()],
-    ].map(row => row.join(',')).join('\n');
+      ['Report Generated', new Date().toLocaleString()]
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -718,7 +609,7 @@ export default function Inventory() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     alert(t('exportSuccess'));
   };
 
@@ -726,8 +617,10 @@ export default function Inventory() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-black dark:text-white">{t('inventory')}</h1>
+
         <div className="flex gap-2">
-          <button 
+          <button
+            type="button"
             onClick={exportToCSV}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2"
           >
@@ -735,7 +628,9 @@ export default function Inventory() {
             <span className="hidden sm:inline">{t('exportInventory')}</span>
             <span className="sm:hidden">{t('exportReport')}</span>
           </button>
-          <button 
+
+          <button
+            type="button"
             onClick={() => printInventoryReport(true)}
             className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2"
           >
@@ -743,40 +638,62 @@ export default function Inventory() {
             <span className="hidden sm:inline">{t('printInventory')}</span>
             <span className="sm:hidden">{t('printReport')}</span>
           </button>
-          <button 
+
+          <button
+            type="button"
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2"
             onClick={openAddItemModal}
           >
-            <Plus size={20}/> {t('addItem')}
+            <Plus size={20} /> {t('addItem')}
           </button>
         </div>
       </div>
 
-      {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border">
-          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('totalItems')}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('totalItems')}
+          </div>
           <div className="text-2xl font-bold dark:text-white">{stats.totalItems}</div>
         </div>
+
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border">
-          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('totalValue')}</div>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">${stats.totalValue.toFixed(2)}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('totalValue')}
+          </div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+            ${stats.totalValue.toFixed(2)}
+          </div>
         </div>
+
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border">
-          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('averagePrice')}</div>
-          <div className="text-2xl font-bold dark:text-white">${stats.averagePrice.toFixed(2)}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('averagePrice')}
+          </div>
+          <div className="text-2xl font-bold dark:text-white">
+            ${stats.averagePrice.toFixed(2)}
+          </div>
         </div>
+
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border">
-          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('lowStockItems')}</div>
-          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.lowStockItems}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('lowStockItems')}
+          </div>
+          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+            {stats.lowStockItems}
+          </div>
         </div>
+
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border">
-          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('outOfStockItems')}</div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.outOfStockItems}</div>
+          <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('outOfStockItems')}
+          </div>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            {stats.outOfStockItems}
+          </div>
         </div>
       </div>
 
-      {/* Search and Filter Bar */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -791,7 +708,7 @@ export default function Inventory() {
               <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-gray-500" />
             <select
@@ -800,7 +717,7 @@ export default function Inventory() {
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
               <option value="all">{t('allCategories')}</option>
-              {CATEGORIES.map(category => (
+              {CATEGORIES.map((category) => (
                 <option key={category} value={category}>
                   {lang === 'en' ? category : translateCategory(category)}
                 </option>
@@ -809,25 +726,31 @@ export default function Inventory() {
             <ChevronDown className="text-gray-400 -ml-8 pointer-events-none" size={18} />
           </div>
         </div>
-        
+
         <div className="mt-4 flex justify-between items-center">
           <div className="text-sm text-gray-500">
             {t('showing')} {filteredProducts.length} {t('of')} {products.length} {t('items')}
           </div>
-          
+
           {filteredProducts.length > 0 && (
             <div className="flex items-center gap-3">
               <div className="text-sm text-gray-500">
                 {selectedItems.size} {t('selectedItems')}
               </div>
+
               <button
+                type="button"
                 onClick={selectAllItems}
                 className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
               >
-                {selectedItems.size === filteredProducts.length ? t('deselectAll') : t('selectAll')}
+                {selectedItems.size === filteredProducts.length
+                  ? t('deselectAll')
+                  : t('selectAll')}
               </button>
+
               {selectedItems.size > 0 && (
                 <button
+                  type="button"
                   onClick={() => printInventoryReport(false)}
                   className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
                 >
@@ -840,28 +763,26 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Products Table */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden">
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-gray-400 mb-4">
               <Search size={64} className="mx-auto" />
             </div>
+
             <h3 className="text-xl font-bold text-gray-600 dark:text-gray-300 mb-2">
               {search || selectedCategory !== 'all' ? t('noProducts') : t('addFirstItem')}
             </h3>
+
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              {search || selectedCategory !== 'all' 
-                ? (lang === 'en' 
-                    ? 'Try adjusting your search or filter' 
-                    : 'សាកល្បងកែសម្រួលការស្វែងរក ឬតម្រងរបស់អ្នក')
-                : (lang === 'en' 
-                    ? 'Start by adding your first menu item' 
-                    : 'ចាប់ផ្តើមដោយបន្ថែមទំនិញដំបូងក្នុងមីនុយ')
-              }
+              {search || selectedCategory !== 'all'
+                ? t('tryAdjustingSearch')
+                : t('startAddingFirstMenuItem')}
             </p>
+
             {!search && selectedCategory === 'all' && (
-              <button 
+              <button
+                type="button"
                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto"
                 onClick={openAddItemModal}
               >
@@ -878,26 +799,48 @@ export default function Inventory() {
                   <th className="py-4 px-6">
                     <input
                       type="checkbox"
-                      checked={selectedItems.size === filteredProducts.length}
+                      checked={
+                        filteredProducts.length > 0 &&
+                        selectedItems.size === filteredProducts.length
+                      }
                       onChange={selectAllItems}
                       className="rounded border-gray-300"
                     />
                   </th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('name')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('category')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('price')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('stock')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('value')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('lastUpdated')}</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">{t('actions')}</th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('name')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('category')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('price')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('stock')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('value')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('lastUpdated')}
+                  </th>
+                  <th className="text-left py-4 px-6 font-semibold text-gray-600 dark:text-gray-300">
+                    {t('actions')}
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredProducts.map((product) => {
                   const stockStatus = getStockStatus(product.stock);
                   const itemValue = product.price * product.stock;
+
                   return (
-                    <tr key={product.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <tr
+                      key={product.id}
+                      className="border-b hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
                       <td className="py-4 px-6">
                         <input
                           type="checkbox"
@@ -906,6 +849,7 @@ export default function Inventory() {
                           className="rounded border-gray-300"
                         />
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
                           <img
@@ -917,54 +861,69 @@ export default function Inventory() {
                             }}
                           />
                           <div>
-                            <div className="font-medium dark:text-white">{product.name[lang]}</div>
+                            <div className="font-medium dark:text-white">
+                              {product.name[lang]}
+                            </div>
                             <div className="text-sm text-gray-500">
                               {lang === 'en' ? product.name.km : product.name.en}
                             </div>
                           </div>
                         </div>
                       </td>
+
                       <td className="py-4 px-6">
                         <span className="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1 rounded-full text-sm">
                           <Tag size={14} />
-                          {lang === 'en' ? product.category : translateCategory(product.category)}
+                          {lang === 'en'
+                            ? product.category
+                            : translateCategory(product.category)}
                         </span>
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-1 font-bold text-green-600 dark:text-green-400">
                           <DollarSign size={16} />
                           {product.price.toFixed(2)}
                         </div>
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${stockStatus.color}`}>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${stockStatus.color}`}
+                          >
                             {stockStatus.text}
                           </span>
                           <span className="font-medium dark:text-white">{product.stock}</span>
                         </div>
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="font-medium dark:text-white">
                           ${itemValue.toFixed(2)}
                         </div>
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="text-sm text-gray-500 flex items-center gap-1">
                           <Clock size={14} />
                           {formatDate(product.updatedAt, lang)}
                         </div>
                       </td>
+
                       <td className="py-4 px-6">
                         <div className="flex gap-2">
                           <button
+                            type="button"
                             onClick={() => openEditItemModal(product)}
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30"
                             title={t('edit')}
                           >
                             <Edit2 size={18} />
                           </button>
+
                           <button
+                            type="button"
                             onClick={() => handleDeleteItem(product.id)}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30"
                             title={t('delete')}
@@ -982,7 +941,6 @@ export default function Inventory() {
         )}
       </div>
 
-      {/* Add/Edit Item Modal */}
       {showItemModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -990,7 +948,9 @@ export default function Inventory() {
               <h2 className="text-xl font-bold dark:text-white">
                 {modalMode === 'add' ? t('addNewItemTitle') : t('editItemTitle')}
               </h2>
-              <button 
+
+              <button
+                type="button"
                 onClick={() => {
                   setShowItemModal(false);
                   resetImage();
@@ -1012,10 +972,12 @@ export default function Inventory() {
                   type="text"
                   className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3"
                   value={newItem.name.en}
-                  onChange={(e) => setNewItem({
-                    ...newItem,
-                    name: { ...newItem.name, en: e.target.value }
-                  })}
+                  onChange={(e) =>
+                    setNewItem({
+                      ...newItem,
+                      name: { ...newItem.name, en: e.target.value }
+                    })
+                  }
                   placeholder={t('enterEnglishName')}
                   disabled={isUploading}
                 />
@@ -1029,10 +991,12 @@ export default function Inventory() {
                   type="text"
                   className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3"
                   value={newItem.name.km}
-                  onChange={(e) => setNewItem({
-                    ...newItem,
-                    name: { ...newItem.name, km: e.target.value }
-                  })}
+                  onChange={(e) =>
+                    setNewItem({
+                      ...newItem,
+                      name: { ...newItem.name, km: e.target.value }
+                    })
+                  }
                   placeholder={t('enterKhmerName')}
                   disabled={isUploading}
                 />
@@ -1046,7 +1010,7 @@ export default function Inventory() {
                   type="number"
                   className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3"
                   value={newItem.price}
-                  onChange={(e) => setNewItem({...newItem, price: e.target.value})}
+                  onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
                   placeholder="0.00"
                   min="0"
                   step="0.01"
@@ -1062,7 +1026,7 @@ export default function Inventory() {
                   type="number"
                   className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3"
                   value={newItem.stock}
-                  onChange={(e) => setNewItem({...newItem, stock: e.target.value})}
+                  onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
                   placeholder={t('enterStockQuantity')}
                   min="0"
                   disabled={isUploading}
@@ -1077,7 +1041,7 @@ export default function Inventory() {
                   <select
                     className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3 appearance-none"
                     value={newItem.category}
-                    onChange={(e) => setNewItem({...newItem, category: e.target.value})}
+                    onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
                     disabled={isUploading}
                   >
                     {CATEGORIES.map((c) => (
@@ -1086,7 +1050,10 @@ export default function Inventory() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                    size={20}
+                  />
                 </div>
               </div>
 
@@ -1094,10 +1061,15 @@ export default function Inventory() {
                 <label className="block text-sm font-medium mb-2 dark:text-white">
                   {t('itemImage')}
                 </label>
-                
+
                 <div className="flex gap-2 mb-3">
                   <button
-                    className={`flex-1 py-2 rounded-lg ${uploadMethod === 'url' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 border border-blue-300 dark:border-blue-700' : 'bg-gray-100 dark:bg-gray-700'}`}
+                    type="button"
+                    className={`flex-1 py-2 rounded-lg ${
+                      uploadMethod === 'url'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                        : 'bg-gray-100 dark:bg-gray-700'
+                    }`}
                     onClick={() => setUploadMethod('url')}
                     disabled={isUploading}
                   >
@@ -1106,8 +1078,14 @@ export default function Inventory() {
                       <span>{t('imageUrl')}</span>
                     </div>
                   </button>
+
                   <button
-                    className={`flex-1 py-2 rounded-lg ${uploadMethod === 'file' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 border border-blue-300 dark:border-blue-700' : 'bg-gray-100 dark:bg-gray-700'}`}
+                    type="button"
+                    className={`flex-1 py-2 rounded-lg ${
+                      uploadMethod === 'file'
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 border border-blue-300 dark:border-blue-700'
+                        : 'bg-gray-100 dark:bg-gray-700'
+                    }`}
                     onClick={() => setUploadMethod('file')}
                     disabled={isUploading}
                   >
@@ -1124,12 +1102,14 @@ export default function Inventory() {
                       type="text"
                       className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl px-4 py-3"
                       value={newItem.imageUrl}
-                      onChange={(e) => setNewItem({
-                        ...newItem, 
-                        imageUrl: e.target.value,
-                        image: null,
-                        imagePreview: null
-                      })}
+                      onChange={(e) =>
+                        setNewItem({
+                          ...newItem,
+                          imageUrl: e.target.value,
+                          image: null,
+                          imagePreview: null
+                        })
+                      }
                       placeholder={t('enterImageUrl')}
                       disabled={isUploading}
                     />
@@ -1149,7 +1129,7 @@ export default function Inventory() {
                       onChange={handleFileUpload}
                       disabled={isUploading}
                     />
-                    
+
                     {newItem.imagePreview ? (
                       <div className="relative">
                         <img
@@ -1157,6 +1137,7 @@ export default function Inventory() {
                           alt="Preview"
                           className="w-full h-48 object-cover rounded-xl mb-2 border"
                         />
+
                         {!isUploading && (
                           <button
                             type="button"
@@ -1166,19 +1147,18 @@ export default function Inventory() {
                             <X size={16} />
                           </button>
                         )}
+
                         {isUploading && (
                           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-xl">
                             <div className="text-white">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-                              <p className="mt-2">
-                                {lang === 'en' ? 'Uploading...' : 'កំពុងផ្ទុក...'}
-                              </p>
+                              <p className="mt-2">{t('uploading')}</p>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div 
+                      <div
                         className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                         onClick={openFileInput}
                       >
@@ -1204,7 +1184,8 @@ export default function Inventory() {
                       alt="Preview"
                       className="w-full h-32 object-cover rounded-xl border"
                       onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/300x200?text=Invalid+Image+URL';
+                        e.target.src =
+                          'https://via.placeholder.com/300x200?text=Invalid+Image+URL';
                       }}
                     />
                   </div>
@@ -1213,6 +1194,7 @@ export default function Inventory() {
 
               <div className="flex gap-3 pt-4 sticky bottom-0 bg-white dark:bg-gray-800 pb-4">
                 <button
+                  type="button"
                   className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white py-3 rounded-xl font-medium transition-colors"
                   onClick={() => {
                     setShowItemModal(false);
@@ -1223,7 +1205,9 @@ export default function Inventory() {
                 >
                   {t('cancel')}
                 </button>
+
                 <button
+                  type="button"
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleSaveItem}
                   disabled={isUploading}
@@ -1233,8 +1217,10 @@ export default function Inventory() {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       {t('saving')}
                     </span>
+                  ) : modalMode === 'add' ? (
+                    t('addItemBtn')
                   ) : (
-                    modalMode === 'add' ? t('addItemBtn') : t('updateItem')
+                    t('updateItem')
                   )}
                 </button>
               </div>

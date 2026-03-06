@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 
 const LangContext = createContext();
+const defaultLang = import.meta.env.VITE_DEFAULT_LANG || 'en';
 
 export function LangProvider({ children }) {
   const [lang, setLang] = useState(localStorage.getItem('pos-lang') || 'en');

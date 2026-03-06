@@ -1,114 +1,328 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Plus,
+  Minus,
+  Trash2,
+  Search,
+  X,
+  CreditCard,
+  ChevronDown,
+  Upload,
+  ImageIcon,
+  Save,
+  Edit2,
+  QrCode,
+  Clock,
+  History,
+  Printer,
+  AlertCircle,
+  ShoppingCart,
+  FileText,
+  CheckCircle2,
+  Copy,
+  Filter,
+} from "lucide-react";
 
-import React, { useState, useRef, useEffect } from "react";
-import { Plus, Minus, Trash2, Search, X, Globe, PauseCircle, CreditCard, ChevronDown, Upload, ImageIcon, Save, Edit2, QrCode, Calendar, Clock, History, Printer, Download, FileText, AlertCircle, ShoppingCart, Star, Filter, DollarSign, Tag, Users, TrendingUp, CalendarDays, CalendarRange } from "lucide-react";
 import { useCart } from "../hooks/useCart";
 import { useLang } from "../context/LangContext";
+import { useAuth } from "../context/AuthContext";
 
-const CATEGORIES = [
-  "Coffee",
-  "Beverages",
-  "BBQ",
-  "Snacks",
-];
+import { api } from "../api/client";
+import { getImageUrl } from "../api/helper";
 
-// Helper function to format date
-const formatDate = (dateString, lang = 'en') => {
+const TAX_RATE = 0.015;
+const DEFAULT_DISCOUNT = 20;
+
+const FALLBACK_CATEGORIES = ["Coffee", "Beverages", "BBQ", "Snacks"];
+
+const getCurrentDate = () => new Date().toISOString();
+
+const formatDate = (dateString, lang = "en") => {
+  if (!dateString) return "";
   const date = new Date(dateString);
-  if (lang === 'km') {
-    return date.toLocaleDateString('km-KH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  if (lang === "km") {
+    return date.toLocaleDateString("km-KH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
-// Helper function to get current date in correct format
-const getCurrentDate = () => {
-  return new Date().toISOString();
-};
+function translateCategory(c) {
+  const map = {
+    Coffee: "កាហ្វេ",
+    Beverages: "ភេសជ្ជៈ",
+    BBQ: "អាំង",
+    Snacks: "អាហារសម្រន់",
+    Deserts: "នំ",
+  };
+  return map[c] || c;
+}
 
-// Load products from localStorage
-const loadProductsFromStorage = () => {
-  try {
-    const savedProducts = localStorage.getItem('restaurant_products');
-    if (savedProducts) {
-      const products = JSON.parse(savedProducts);
-      // Ensure all products have date fields
-      return products.map(product => ({
-        ...product,
-        createdAt: product.createdAt || getCurrentDate(),
-        updatedAt: product.updatedAt || getCurrentDate()
-      }));
-    }
-  } catch (error) {
-    console.error("Error loading products:", error);
+function getDefaultImageByCategory(category) {
+  const defaults = {
+    Coffee:
+      "https://images.unsplash.com/photo-1513118171418-46b8c4e07e43?w=300&h=200&fit=crop",
+    Beverages:
+      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=300&h=200&fit=crop",
+    BBQ: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&h=200&fit=crop",
+    Snacks:
+      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&h=200&fit=crop",
+    General:
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=300&h=200&fit=crop",
+  };
+  return defaults[category] || defaults.General;
+}
+
+function normalizeImageUrl(url) {
+  if (!url) return "";
+  const trimmed = String(url).trim();
+  if (
+    trimmed.includes("images.unsplash.com/photo-") &&
+    !trimmed.includes("?")
+  ) {
+    return `${trimmed}?w=800&auto=format&fit=crop&q=80`;
   }
-  return [];
-};
+  return trimmed;
+}
 
-// Save products to localStorage
-const saveProductsToStorage = (products) => {
-  try {
-    localStorage.setItem('restaurant_products', JSON.stringify(products));
-  } catch (error) {
-    console.error("Error saving products:", error);
+// -------------------- BACKEND <-> UI MAPPERS --------------------
+function toUiProduct(apiProduct, categoriesById) {
+  const id = apiProduct?.productId ?? apiProduct?.id;
+  const productName =
+    apiProduct?.productName ??
+    apiProduct?.name ??
+    apiProduct?.product_name ??
+    "";
+
+  const price = Number(apiProduct?.price ?? 0);
+  const stockQty = Number(apiProduct?.stockQty ?? apiProduct?.stock_qty ?? 0);
+  const cost = Number(apiProduct?.cost ?? 0);
+
+  const available =
+    typeof apiProduct?.available === "boolean"
+      ? apiProduct.available
+      : typeof apiProduct?.isAvailable === "boolean"
+        ? apiProduct.isAvailable
+        : typeof apiProduct?.is_available === "boolean"
+          ? apiProduct.is_available
+          : true;
+
+  const categoryId =
+    apiProduct?.category?.categoryId ??
+    apiProduct?.categoryId ??
+    apiProduct?.category_id;
+
+  const categoryName =
+    apiProduct?.category?.categoryName ??
+    apiProduct?.categoryName ??
+    categoriesById?.[categoryId]?.categoryName ??
+    "Coffee";
+
+  const image =
+    apiProduct?.image ??
+    apiProduct?.imageUrl ??
+    apiProduct?.image_url ??
+    getDefaultImageByCategory(categoryName);
+
+  return {
+    id,
+    categoryId: categoryId ?? null,
+    category: categoryName,
+    name: { en: productName, km: productName },
+    price,
+    cost,
+    stockQty,
+    available,
+    image,
+    createdAt:
+      apiProduct?.createdAt ?? apiProduct?.createAt ?? getCurrentDate(),
+    updatedAt: apiProduct?.updatedAt ?? getCurrentDate(),
+  };
+}
+
+function toApiProduct(uiProduct, categoryId) {
+  return {
+    productName: uiProduct?.name?.en ?? "",
+    price: Number(uiProduct?.price ?? 0),
+    cost: Number(uiProduct?.cost ?? 0),
+    stockQty: Number(uiProduct?.stockQty ?? 0),
+    available: !!uiProduct?.available,
+    isAvailable: !!uiProduct?.available,
+    category: categoryId ? { categoryId } : null,
+    image: uiProduct?.image ?? null,
+  };
+}
+
+function toUiOrder(apiOrder, productsById) {
+  const id = apiOrder?.orderId ?? apiOrder?.id;
+  const timestamp =
+    apiOrder?.orderDate ?? apiOrder?.timestamp ?? apiOrder?.createdAt;
+
+  const rawStatus = apiOrder?.orderStatus ?? apiOrder?.status ?? "saved";
+  const status = String(rawStatus).toLowerCase() === "paid" ? "paid" : "saved";
+
+  const total = Number(apiOrder?.totalAmount ?? apiOrder?.total ?? 0);
+
+  const details =
+    apiOrder?.orderDetails ??
+    apiOrder?.items ??
+    apiOrder?.orderDetailList ??
+    [];
+
+  const items = Array.isArray(details)
+    ? details.map((d) => {
+        const pid =
+          d?.product?.productId ?? d?.productId ?? d?.id ?? d?.product_id;
+        const p = productsById?.[pid];
+
+        const qty = Number(d?.quantity ?? d?.qty ?? 1);
+        const price = Number(d?.unitPrice ?? d?.price ?? p?.price ?? 0);
+
+        return {
+          id: pid,
+          name: p?.name ?? {
+            en: d?.product?.productName ?? "",
+            km: d?.product?.productName ?? "",
+          },
+          qty,
+          price,
+          image:
+            p?.image ?? getDefaultImageByCategory(p?.category ?? "General"),
+        };
+      })
+    : [];
+
+  const subtotal = items.reduce((s, it) => s + it.qty * it.price, 0);
+
+  const discount = Number(apiOrder?.discount ?? 0);
+  const tax = Number(apiOrder?.tax ?? subtotal * TAX_RATE);
+
+  return {
+    id,
+    timestamp: timestamp ?? getCurrentDate(),
+    status,
+    paymentMethod:
+      apiOrder?.paymentMethod ?? (status === "paid" ? "qr" : "none"),
+    items,
+    subtotal: Number(apiOrder?.subTotal ?? subtotal),
+    discount,
+    tax,
+    total: total || subtotal - discount + tax,
+  };
+}
+function buildOrderPayload({ items, status, user }) {
+  return {
+    userId: user?.userId ?? null,
+    customerId: null,
+    tableId: null,
+    orderType: "POS",
+    orderStatus: status?.toUpperCase?.() ?? "SAVED",
+    items: items.map((it) => ({
+      productId: it.id,
+      quantity: it.qty,
+      unitPrice: it.price,
+    })),
+  };
+
+  {
+    const orderDetails = items.map((it) => ({
+      productId: it.id,
+      quantity: it.qty,
+      unitPrice: it.price,
+      subTotal: Number((it.qty * it.price).toFixed(2)),
+    }));
+
+    return {
+      orderType: "POS",
+      orderStatus: status?.toUpperCase?.() ?? "SAVED",
+      totalAmount: Number(totalAmount.toFixed(2)),
+      paymentMethod: paymentMethod ?? "none",
+      subTotal: Number(totals.subtotal.toFixed(2)),
+      discount: Number(discountAmount.toFixed(2)),
+      tax: Number(taxAmount.toFixed(2)),
+      userId: user?.userId ?? null,
+      user: user?.userId ? { userId: user.userId } : null,
+      orderDetails,
+    };
   }
-};
+}
+// -------------------- API CALL HELPERS --------------------
+async function apiGetCategories() {
+  const res = await api.get("/api/categories");
+  return res.data;
+}
+async function apiCreateCategory(payload) {
+  const res = await api.post("/api/categories", payload);
+  return res.data;
+}
+async function apiUpdateCategory(id, payload) {
+  const res = await api.put(`/api/categories/${id}`, payload);
+  return res.data;
+}
+async function apiDeleteCategory(id) {
+  const res = await api.delete(`/api/categories/${id}`);
+  return res.data;
+}
 
-// Load orders from localStorage
-const loadOrdersFromStorage = () => {
-  try {
-    const savedOrders = localStorage.getItem('restaurant_orders');
-    return savedOrders ? JSON.parse(savedOrders) : [];
-  } catch (error) {
-    console.error("Error loading orders:", error);
-    return [];
-  }
-};
+async function apiGetProducts(params = {}) {
+  const res = await api.get("/api/products", { params });
+  return res.data;
+}
+async function apiCreateProduct(payload) {
+  const res = await api.post("/api/products", payload);
+  return res.data;
+}
+async function apiUpdateProduct(id, payload) {
+  const res = await api.put(`/api/products/${id}`, payload);
+  return res.data;
+}
+async function apiDeleteProduct(id) {
+  const res = await api.delete(`/api/products/${id}`);
+  return res.data;
+}
 
-// Save orders to localStorage
-const saveOrdersToStorage = (orders) => {
-  try {
-    localStorage.setItem('restaurant_orders', JSON.stringify(orders));
-  } catch (error) {
-    console.error("Error saving orders:", error);
-  }
-};
+async function apiGetOrders() {
+  const res = await api.get("/api/orders");
+  return res.data;
+}
+async function apiCreateOrder(payload) {
+  const res = await api.post("/api/orders", payload);
+  return res.data;
+}
+async function apiUpdateOrder(id, payload) {
+  const res = await api.put(`/api/orders/${id}`, payload);
+  return res.data;
+}
+async function apiDeleteOrder(id) {
+  const res = await api.delete(`/api/orders/${id}`);
+  return res.data;
+}
 
-// Translation dictionary
+// -------------------- TRANSLATIONS --------------------
 const TRANSLATIONS = {
   en: {
-    // Left sidebar
     addNewItem: "ADD NEW ITEM",
     searchPlaceholder: "Search items here...",
     checkout: "Checkout",
-    
-    // Center section 
-    popular: "Popular",
     editItem: "Edit Item",
     deleteItem: "Delete Item",
     noProducts: "No items available. Add your first item!",
-    viewAll: "View All",
     totalProducts: "Total Products",
     itemsInMenu: "Items in your menu",
-    addedOn: "Added on",
     updatedOn: "Updated on",
-    addToCart: "Add to Cart",
-    quickAdd: "Quick Add",
     addNow: "Add Now",
     addedToCart: "Added to cart!",
-    
-    // Right sidebar
     name: "Name",
     qty: "QTY",
     price: "Price",
@@ -116,16 +330,36 @@ const TRANSLATIONS = {
     subTotal: "Sub Total",
     tax: "Tax 1.5%",
     total: "Total",
-    visitSite: "Visit site",
     cancelOrder: "Cancel Order",
-    holdOrder: "Hold Order",
     saveOrder: "Save Order",
     pay: "Pay",
-    apply20: "Apply 20%",
-    qrPayment: "QR Payment",
+    payment: "Payment",
+    qrPaymentTitle: "QR Code Payment",
+    scanQr: "Scan this QR code to complete payment",
+    paymentAmount: "Payment Amount",
+    confirmPayment: "Confirm Payment",
+    processing: "Processing...",
     orderHistory: "Order History",
-    
-    // Modal
+    orderHistoryTitle: "Order History",
+    orderId: "Order ID",
+    date: "Date",
+    status: "Status",
+    items: "Items",
+    paid: "Paid",
+    saved: "Saved",
+    cartEmpty: "Cart is empty",
+    addItemSuccess: "Item added successfully!",
+    updateItemSuccess: "Item updated successfully!",
+    deleteItemSuccess: "Item deleted successfully!",
+    enterNamePrice: "Please enter name and price",
+    selectImageFile: "Please select an image file",
+    fileTooLarge: "File size should be less than 5MB",
+    confirmCancel: "Are you sure you want to cancel the order?",
+    confirmDelete: "Are you sure you want to delete this item?",
+    orderSaved: "Order saved successfully!",
+    paymentSuccess: "Payment processed successfully!",
+    removeFromCartConfirm: "Remove this item from cart?",
+    cancel: "Cancel",
     addNewItemTitle: "Add New Item",
     editItemTitle: "Edit Item",
     itemName: "Item Name",
@@ -140,119 +374,51 @@ const TRANSLATIONS = {
     clickToUpload: "Click to upload image",
     fileTypes: "JPG, PNG, GIF up to 5MB",
     preview: "Preview",
-    cancel: "Cancel",
     addItem: "Add Item",
     updateItem: "Update Item",
-    
-    // QR Payment Modal
-    qrPaymentTitle: "QR Code Payment",
-    scanQr: "Scan this QR code to complete payment",
-    paymentAmount: "Payment Amount",
-    paymentComplete: "Payment Complete",
-    confirmPayment: "Confirm Payment",
-    processing: "Processing...",
-    
-    // Order History Modal
-    orderHistoryTitle: "Order History",
-    orderId: "Order ID",
-    date: "Date",
-    amount: "Amount",
-    status: "Status",
-    items: "Items",
-    paid: "Paid",
-    saved: "Saved",
-    viewDetails: "View Details",
-    noOrders: "No orders yet",
-    printReceipt: "Print Receipt",
-    exportOrder: "Export Order",
     printAll: "Print All Orders",
-    editOrder: "Edit Order",
-    deleteOrder: "Delete Order",
-    duplicateOrder: "Duplicate Order",
-    markAsPaid: "Mark as Paid",
-    markAsSaved: "Mark as Saved",
+    noOrders: "No orders yet",
+    cannotEditPaid: "Cannot edit paid orders. Please duplicate instead.",
     confirmDeleteOrder: "Are you sure you want to delete this order?",
     confirmEditOrder: "Edit this order? This will load it into the cart.",
     orderDeleted: "Order deleted successfully!",
     orderUpdated: "Order updated successfully!",
     orderLoaded: "Order loaded into cart!",
-    cannotEditPaid: "Cannot edit paid orders. Please duplicate instead.",
-    
-    // Search and Filter
-    searchOrders: "Search orders...",
-    filterOrders: "Filter Orders",
-    allStatus: "All Status",
-    allPaymentMethods: "All Payment Methods",
-    allTime: "All Time",
-    today: "Today",
-    yesterday: "Yesterday",
-    thisWeek: "This Week",
-    thisMonth: "This Month",
-    lastMonth: "Last Month",
-    customRange: "Custom Range",
-    startDate: "Start Date",
-    endDate: "End Date",
-    applyFilter: "Apply Filter",
-    clearFilter: "Clear Filter",
-    totalOrders: "Total Orders",
-    totalRevenue: "Total Revenue",
-    averageOrder: "Average Order",
-    highestOrder: "Highest Order",
-    searchById: "Search by Order ID",
-    searchByDate: "Search by Date",
-    searchByItem: "Search by Item Name",
-    searchByAmount: "Search by Amount",
-    sortBy: "Sort By",
-    newestFirst: "Newest First",
-    oldestFirst: "Oldest First",
-    highestAmount: "Highest Amount",
-    lowestAmount: "Lowest Amount",
-    
-    // Messages
-    cartEmpty: "Cart is empty",
-    addItemSuccess: "Item added successfully!",
-    updateItemSuccess: "Item updated successfully!",
-    deleteItemSuccess: "Item deleted successfully!",
-    enterNamePrice: "Please enter name and price",
-    selectImageFile: "Please select an image file",
-    fileTooLarge: "File size should be less than 5MB",
-    confirmCancel: "Are you sure you want to cancel the order?",
-    confirmDelete: "Are you sure you want to delete this item?",
-    confirmHold: "Hold this order for later?",
-    orderHeld: "Order held successfully",
-    orderSaved: "Order saved successfully!",
-    paymentSuccess: "Payment processed successfully!",
-    apply20Discount: "20% discount applied!",
-    removeFromCartConfirm: "Remove this item from cart?",
-    saveSuccess: "Item saved successfully!",
-    uploadComplete: "Upload complete!",
-    orderProcessed: "Order processed successfully!",
-    receiptPrinted: "Receipt printed successfully!",
-    printAllOrders: "Printing all orders...",
     orderExported: "Order exported successfully!",
+    printAllOrders: "Printing all orders...",
+    searchOrders: "Search orders...",
+    allStatus: "All Status",
+    actions: "Actions",
+    editOrder: "Edit",
+    duplicateOrder: "Duplicate",
+    markAsPaid: "Mark Paid",
+    markAsSaved: "Mark Saved",
+    deleteOrder: "Delete",
+    printReceipt: "Print",
+    exportOrder: "Export",
+    filters: "Filters",
+    close: "Close",
+    addCategory: "Add Category",
+    editCategory: "Edit Category",
+    categoryName: "Category name",
+    categoryAdded: "Category added successfully!",
+    categoryUpdated: "Category updated successfully!",
+    categoryDeleted: "Category deleted successfully!",
+    cannotDeleteCategory:
+      "Cannot delete category with associated products. Please reassign or delete those products first.",
   },
   km: {
-    // Left sidebar
     addNewItem: "បន្ថែមទំនិញថ្មី",
     searchPlaceholder: "ស្វែងរកឈ្មោះទំនិញ",
     checkout: "បញ្ជាទិញ",
-    
-    // Center section
-    popular: "ពេញនិយម",
     editItem: "កែសម្រួលទំនិញ",
     deleteItem: "លុបទំនិញ",
     noProducts: "គ្មានទំនិញទេ។ បន្ថែមទំនិញដំបូងរបស់អ្នក!",
-    viewAll: "មើលទាំងអស់",
     totalProducts: "ទំនិញសរុប",
     itemsInMenu: "ទំនិញក្នុងមីនុយរបស់អ្នក",
-    addedOn: "បានបន្ថែមនៅ",
     updatedOn: "បានកែសម្រួលនៅ",
-    addToCart: "បន្ថែមទៅរទេះ",
-    quickAdd: "បន្ថែមរហ័ស",
     addNow: "បន្ថែមឥឡូវ",
     addedToCart: "បានបន្ថែមទៅក្នុងរទេះ!",
-    
-    // Right sidebar
     name: "ឈ្មោះ",
     qty: "ចំនួន",
     price: "តម្លៃ",
@@ -260,16 +426,36 @@ const TRANSLATIONS = {
     subTotal: "សរុបមុន",
     tax: "ពន្ធី 1.5%",
     total: "សរុប",
-    visitSite: "ទស្សនាគេហទំព័រ",
     cancelOrder: "បោះបង់ការកម្មង់",
-    holdOrder: "ផ្ទុកការកម្មង់",
     saveOrder: "រក្សាទុកការកម្មង់",
     pay: "បង់ប្រាក់",
-    apply20: "ប្រើប្រាស់ 20%",
-    qrPayment: "ទូទាត់តាម QR",
+    payment: "ទូទាត់",
+    qrPaymentTitle: "ការទូទាត់តាម QR Code",
+    scanQr: "ស្កេន QR code នេះដើម្បីបញ្ចប់ការទូទាត់",
+    paymentAmount: "ចំនួនទឹកប្រាក់",
+    confirmPayment: "បញ្ជាក់ការទូទាត់",
+    processing: "កំពុងដំណើរការ...",
     orderHistory: "ប្រវត្តិការកម្មង់",
-    
-    // Modal
+    orderHistoryTitle: "ប្រវត្តិការកម្មង់",
+    orderId: "លេខកូដកម្មង់",
+    date: "កាលបរិច្ឆេទ",
+    status: "ស្ថានភាព",
+    items: "ទំនិញ",
+    paid: "បានបង់",
+    saved: "បានរក្សាទុក",
+    cartEmpty: "រទេះទំនិញទទេ",
+    addItemSuccess: "ទំនិញត្រូវបានបន្ថែមដោយជោគជ័យ!",
+    updateItemSuccess: "ទំនិញត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ!",
+    deleteItemSuccess: "ទំនិញត្រូវបានលុបដោយជោគជ័យ!",
+    enterNamePrice: "សូមបញ្ចូលឈ្មោះ និងតម្លៃ",
+    selectImageFile: "សូមជ្រើសរើសឯកសាររូបភាព",
+    fileTooLarge: "ទំហំឯកសារគួរតែតូចជាង 5MB",
+    confirmCancel: "តើអ្នកប្រាកដថាចង់បោះបង់ការកម្មង់នេះឬ?",
+    confirmDelete: "តើអ្នកប្រាកដថាចង់លុបទំនិញនេះឬ?",
+    orderSaved: "កម្មង់ត្រូវបានរក្សាទុកដោយជោគជ័យ!",
+    paymentSuccess: "ការទូទាត់បានជោគជ័យ!",
+    removeFromCartConfirm: "ដកធាតុនេះចេញពីរទេះទំនិញ?",
+    cancel: "បោះបង់",
     addNewItemTitle: "បន្ថែមទំនិញថ្មី",
     editItemTitle: "កែសម្រួលទំនិញ",
     itemName: "ឈ្មោះទំនិញ",
@@ -284,114 +470,80 @@ const TRANSLATIONS = {
     clickToUpload: "ចុចដើម្បីផ្ទុករូបភាព",
     fileTypes: "JPG, PNG, GIF រហូតដល់ 5MB",
     preview: "មើលជាមុន",
-    cancel: "បោះបង់",
     addItem: "បន្ថែមទំនិញ",
     updateItem: "ធ្វើបច្ចុប្បន្នភាពទំនិញ",
-    
-    // QR Payment Modal
-    qrPaymentTitle: "ការទូទាត់តាម QR Code",
-    scanQr: "ស្កេន QR code នេះដើម្បីបញ្ចប់ការទូទាត់",
-    paymentAmount: "ចំនួនទឹកប្រាក់",
-    paymentComplete: "ការទូទាត់បានជោគជ័យ",
-    confirmPayment: "បញ្ជាក់ការទូទាត់",
-    processing: "កំពុងដំណើរការ...",
-    
-    // Order History Modal
-    orderHistoryTitle: "ប្រវត្តិការកម្មង់",
-    orderId: "លេខកូដកម្មង់",
-    date: "កាលបរិច្ឆេទ",
-    amount: "ចំនួន",
-    status: "ស្ថានភាព",
-    items: "ទំនិញ",
-    paid: "បានបង់",
-    saved: "បានរក្សាទុក",
-    viewDetails: "មើលព័ត៌មានលម្អិត",
-    noOrders: "មិនទាន់មានការកម្មង់ទេ",
-    printReceipt: "បោះពុម្ពបង្កាន់ដៃ",
-    exportOrder: "នាំចេញកម្មង់",
     printAll: "បោះពុម្ពកម្មង់ទាំងអស់",
-    editOrder: "កែសម្រួលកម្មង់",
-    deleteOrder: "លុបកម្មង់",
-    duplicateOrder: "ចម្លងកម្មង់",
-    markAsPaid: "សម្គាល់ថាបានបង់",
-    markAsSaved: "សម្គាល់ថារក្សាទុក",
+    noOrders: "មិនទាន់មានការកម្មង់ទេ",
+    cannotEditPaid: "មិនអាចកែសម្រួលកម្មង់ដែលបានបង់ប្រាក់។ សូមចម្លងវិញ។",
     confirmDeleteOrder: "តើអ្នកប្រាកដថាចង់លុបកម្មង់នេះឬ?",
     confirmEditOrder: "កែសម្រួលកម្មង់នេះ? វានឹងត្រូវបានផ្ទុកទៅក្នុងរទេះទំនិញ។",
     orderDeleted: "កម្មង់ត្រូវបានលុបដោយជោគជ័យ!",
     orderUpdated: "កម្មង់ត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ!",
     orderLoaded: "កម្មង់ត្រូវបានផ្ទុកទៅក្នុងរទេះទំនិញ!",
-    cannotEditPaid: "មិនអាចកែសម្រួលកម្មង់ដែលបានបង់ប្រាក់។ សូមចម្លងវិញ។",
-    
-    // Search and Filter
-    searchOrders: "ស្វែងរកកម្មង់...",
-    filterOrders: "តម្រងកម្មង់",
-    allStatus: "ស្ថានភាពទាំងអស់",
-    allPaymentMethods: "វិធីទូទាត់ទាំងអស់",
-    allTime: "ពេលវេលាទាំងអស់",
-    today: "ថ្ងៃនេះ",
-    yesterday: "ម្សិលមិញ",
-    thisWeek: "សប្តាហ៍នេះ",
-    thisMonth: "ខែនេះ",
-    lastMonth: "ខែមុន",
-    customRange: "ជ្រើសរើសពេលវេលា",
-    startDate: "ថ្ងៃចាប់ផ្តើម",
-    endDate: "ថ្ងៃបញ្ចប់",
-    applyFilter: "អនុវត្តតម្រង",
-    clearFilter: "សម្អាតតម្រង",
-    totalOrders: "កម្មង់សរុប",
-    totalRevenue: "ចំណូលសរុប",
-    averageOrder: "មធ្យមកម្មង់",
-    highestOrder: "កម្មង់ខ្ពស់ជាងគេ",
-    searchById: "ស្វែងរកតាមលេខកូដ",
-    searchByDate: "ស្វែងរកតាមកាលបរិច្ឆេទ",
-    searchByItem: "ស្វែងរកតាមឈ្មោះទំនិញ",
-    searchByAmount: "ស្វែងរកតាមចំនួន",
-    sortBy: "តម្រៀបតាម",
-    newestFirst: "ថ្មីជាងមុន",
-    oldestFirst: "ចាស់ជាងមុន",
-    highestAmount: "ចំនួនខ្ពស់ជាងគេ",
-    lowestAmount: "ចំនួនទាបជាងគេ",
-    
-    // Messages
-    cartEmpty: "រទេះទំនិញទទេ",
-    addItemSuccess: "ទំនិញត្រូវបានបន្ថែមដោយជោគជ័យ!",
-    updateItemSuccess: "ទំនិញត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ!",
-    deleteItemSuccess: "ទំនិញត្រូវបានលុបដោយជោគជ័យ!",
-    enterNamePrice: "សូមបញ្ចូលឈ្មោះ និងតម្លៃ",
-    selectImageFile: "សូមជ្រើសរើសឯកសាររូបភាព",
-    fileTooLarge: "ទំហំឯកសារគួរតែតូចជាង 5MB",
-    confirmCancel: "តើអ្នកប្រាកដថាចង់បោះបង់ការកម្មង់នេះឬ?",
-    confirmDelete: "តើអ្នកប្រាកដថាចង់លុបទំនិញនេះឬ?",
-    confirmHold: "ផ្ទុកការកម្មង់នេះសម្រាប់ពេលក្រោយ?",
-    orderHeld: "ការកម្មង់ត្រូវបានផ្ទុកដោយជោគជ័យ",
-    orderSaved: "កម្មង់ត្រូវបានរក្សាទុកដោយជោគជ័យ!",
-    paymentSuccess: "ការទូទាត់បានជោគជ័យ!",
-    apply20Discount: "បញ្ចុះតម្លៃ 20% ត្រូវបានអនុវត្ត!",
-    removeFromCartConfirm: "ដកធាតុនេះចេញពីរទេះទំនិញ?",
-    saveSuccess: "ទំនិញត្រូវបានរក្សាទុកដោយជោគជ័យ!",
-    uploadComplete: "បានផ្ទុករូបភាពដោយជោគជ័យ!",
-    orderProcessed: "ការកម្មង់ត្រូវបានដំណើរការដោយជោគជ័យ!",
-    receiptPrinted: "បង្កាន់ដៃត្រូវបានបោះពុម្ពដោយជោគជ័យ!",
-    printAllOrders: "កំពុងបោះពុម្ពកម្មង់ទាំងអស់...",
     orderExported: "កម្មង់ត្រូវបាននាំចេញដោយជោគជ័យ!",
-  }
+    printAllOrders: "កំពុងបោះពុម្ពកម្មង់ទាំងអស់...",
+    searchOrders: "ស្វែងរកកម្មង់...",
+    allStatus: "ស្ថានភាពទាំងអស់",
+    actions: "សកម្មភាព",
+    editOrder: "កែ",
+    duplicateOrder: "ចម្លង",
+    markAsPaid: "សម្គាល់ថាបានបង់",
+    markAsSaved: "សម្គាល់ថារក្សាទុក",
+    deleteOrder: "លុប",
+    printReceipt: "បោះពុម្ព",
+    exportOrder: "នាំចេញ",
+    filters: "តម្រង",
+    close: "បិទ",
+    addCategory: "បន្ថែមប្រភេទ",
+    editCategory: "កែសម្រួលប្រភេទ",
+    categoryName: "ឈ្មោះប្រភេទ",
+    categoryAdded: "បានបន្ថែមប្រភេទដោយជោគជ័យ!",
+    categoryUpdated: "បានធ្វើបច្ចុប្បន្នភាពប្រភេទដោយជោគជ័យ!",
+    categoryDeleted: "បានលុបប្រភេទដោយជោគជ័យ!",
+    cannotDeleteCategory:
+      "មិនអាចលុបប្រភេទដែលមានទំនិញភ្ជាប់បានទេ។ សូមប្តូរប្រភេទ/លុបទំនិញជាមុនសិន។",
+  },
 };
 
 export default function OrderScreen() {
   const { lang } = useLang();
-  const { items, updateQty, removeFromCart, totals, addToCart, clearCart } = useCart();
+  const { user } = useAuth();
 
-  const [products, setProducts] = useState(() => loadProductsFromStorage());
-  const [orders, setOrders] = useState(() => loadOrdersFromStorage());
+  const { items, updateQty, removeFromCart, totals, addToCart, clearCart } =
+    useCart();
+
+  const t = (key) => TRANSLATIONS?.[lang]?.[key] ?? key;
+
+  // -------------------- BACKEND DATA STATE --------------------
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  // -------------------- CATEGORY CRUD UI STATE --------------------
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryModalMode, setCategoryModalMode] = useState("add"); // add | edit
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [categoryNameInput, setCategoryNameInput] = useState("");
+
+  // -------------------- UI STATE --------------------
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [discountPercent, setDiscountPercent] = useState(20);
+
+  const [discountPercent, setDiscountPercent] = useState(DEFAULT_DISCOUNT);
+  const discountAmount = totals.subtotal * (discountPercent / 100);
+  const taxAmount = (totals.subtotal - discountAmount) * TAX_RATE;
+  const totalAmount = totals.subtotal - discountAmount + taxAmount;
+
   const [showItemModal, setShowItemModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
   const [modalMode, setModalMode] = useState("add");
   const [editingItemId, setEditingItemId] = useState(null);
+
   const [newItem, setNewItem] = useState({
     name: "",
     price: "",
@@ -400,53 +552,195 @@ export default function OrderScreen() {
     imagePreview: null,
     imageUrl: "",
   });
+
   const [uploadMethod, setUploadMethod] = useState("url");
   const [isUploading, setIsUploading] = useState(false);
+
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [quickAddProduct, setQuickAddProduct] = useState(null);
+
   const [showAddSuccess, setShowAddSuccess] = useState(false);
   const [addSuccessItem, setAddSuccessItem] = useState(null);
+
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [cashReceived, setCashReceived] = useState(0);
+  const changeAmount = cashReceived - totalAmount;
+
   const fileInputRef = useRef(null);
-  
-  // Order History Search and Filter States
+  const [imageError, setImageError] = useState(false);
+
+  // Order history filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState("all");
-  const [dateRangeFilter, setDateRangeFilter] = useState("all");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
-  
-  const discountAmount = totals.subtotal * (discountPercent / 100);
-  const taxAmount = (totals.subtotal - discountAmount) * 0.015;
-  const totalAmount = totals.subtotal - discountAmount + taxAmount;
 
-  // Save products to localStorage whenever products change
-  useEffect(() => {
-    saveProductsToStorage(products);
+  // -------------------- DERIVED MAPS --------------------
+  const categoriesById = useMemo(() => {
+    const map = {};
+    for (const c of categories) map[c.categoryId] = c;
+    return map;
+  }, [categories]);
+
+  const categoryIdByName = useMemo(() => {
+    const map = {};
+    for (const c of categories) map[c.categoryName] = c.categoryId;
+    return map;
+  }, [categories]);
+
+  const productsById = useMemo(() => {
+    const map = {};
+    for (const p of products) map[p.id] = p;
+    return map;
   }, [products]);
 
-  // Save orders to localStorage whenever orders change
+  const categoryOptions = useMemo(() => {
+    if (categories.length > 0) return categories.map((c) => c.categoryName);
+    return FALLBACK_CATEGORIES;
+  }, [categories]);
+
+  // -------------------- LOAD CATEGORIES + PRODUCTS --------------------
   useEffect(() => {
-    saveOrdersToStorage(orders);
-  }, [orders]);
+    const load = async () => {
+      let cats = [];
+      try {
+        const resCats = await apiGetCategories();
+        cats = Array.isArray(resCats) ? resCats : [];
+        setCategories(cats);
+      } catch {
+        setCategories([]);
+        cats = [];
+      }
 
-  // Filter products based on category and search
-  const filteredProducts = category === "All" 
-    ? products.filter(p => p.name[lang].toLowerCase().includes(search.toLowerCase()))
-    : products.filter(p => 
-        p.category === category && 
-        p.name[lang].toLowerCase().includes(search.toLowerCase())
+      // Build a local categoriesById for correct mapping during first load
+      const localCategoriesById = {};
+      for (const c of cats) localCategoriesById[c.categoryId] = c;
+
+      setLoadingProducts(true);
+      try {
+        const raw = await apiGetProducts();
+        const list = Array.isArray(raw) ? raw : [];
+        setProducts(list.map((p) => toUiProduct(p, localCategoriesById)));
+      } catch (e) {
+        console.error(e);
+        alert(`Products API error: ${e?.response?.data?.message ?? e.message}`);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // -------------------- CATEGORY CRUD HANDLERS --------------------
+  const openAddCategory = () => {
+    setCategoryModalMode("add");
+    setEditingCategoryId(null);
+    setCategoryNameInput("");
+    setShowCategoryModal(true);
+  };
+
+  const openEditCategory = (cat) => {
+    setCategoryModalMode("edit");
+    setEditingCategoryId(cat.categoryId);
+    setCategoryNameInput(cat.categoryName);
+    setShowCategoryModal(true);
+  };
+
+  const refreshCategories = async () => {
+    const cats = await apiGetCategories();
+    setCategories(Array.isArray(cats) ? cats : []);
+  };
+
+  const handleSaveCategory = async () => {
+    const name = categoryNameInput.trim();
+    if (!name) return;
+
+    try {
+      if (categoryModalMode === "add") {
+        await apiCreateCategory({ categoryName: name });
+        alert(t("categoryAdded"));
+      } else {
+        await apiUpdateCategory(editingCategoryId, { categoryName: name });
+        alert(t("categoryUpdated"));
+      }
+
+      await refreshCategories();
+      setShowCategoryModal(false);
+      setCategoryNameInput("");
+    } catch (e) {
+      console.error(e);
+      alert(`Category API error: ${e?.response?.data?.message ?? e.message}`);
+    }
+  };
+
+  const handleDeleteCategory = async (cat) => {
+    const hasProducts = products.some((p) => p.categoryId === cat.categoryId);
+    if (hasProducts) {
+      alert(t("cannotDeleteCategory"));
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete category "${cat.categoryName}"?`,
+      )
+    )
+      return;
+
+    try {
+      await apiDeleteCategory(cat.categoryId);
+      await refreshCategories();
+
+      // if user is currently filtering on deleted category, reset
+      if (category === cat.categoryName) setCategory("All");
+
+      alert(t("categoryDeleted"));
+    } catch (e) {
+      console.error(e);
+      alert(
+        `Delete category error: ${e?.response?.data?.message ?? e.message}`,
       );
+    }
+  };
 
-  // Get popular items (most recent 4 items)
-  const popularItems = products.slice(0, 4);
+  // -------------------- LOAD ORDERS --------------------
+  const refreshOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const raw = await apiGetOrders();
+      const list = Array.isArray(raw) ? raw : [];
+      setOrders(list.map((o) => toUiOrder(o, productsById)));
+    } catch (e) {
+      console.warn("Orders API not ready:", e?.message);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
-  // Helper function to get translation
-  const t = (key) => TRANSLATIONS[lang][key] || key;
+  useEffect(() => {
+    refreshOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.length]);
 
-  // Show success message when item is added
+  // -------------------- PRODUCT FILTERING --------------------
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base =
+      category === "All"
+        ? products
+        : products.filter((p) => p.category === category);
+
+    if (!q) return base;
+
+    return base.filter((p) =>
+      (p?.name?.[lang] ?? "").toLowerCase().includes(q),
+    );
+  }, [products, category, search, lang]);
+
+  // -------------------- TOAST --------------------
   useEffect(() => {
     if (showAddSuccess && addSuccessItem) {
       const timer = setTimeout(() => {
@@ -457,12 +751,12 @@ export default function OrderScreen() {
     }
   }, [showAddSuccess, addSuccessItem]);
 
-  // Handle quick add to cart
+  // -------------------- CART ACTIONS --------------------
   const handleQuickAdd = (product, event) => {
     if (event) event.stopPropagation();
-    
+
     setQuickAddProduct(product.id);
-    
+
     addToCart({
       id: product.id,
       name: product.name,
@@ -470,23 +764,18 @@ export default function OrderScreen() {
       image: product.image,
       qty: 1,
     });
-    
-    // Show success message
-    setAddSuccessItem(product.name[lang]);
+
+    setAddSuccessItem(product.name?.[lang] ?? "");
     setShowAddSuccess(true);
-    
-    // Reset quick add state
-    setTimeout(() => {
-      setQuickAddProduct(null);
-    }, 500);
+
+    setTimeout(() => setQuickAddProduct(null), 500);
   };
 
-  // Handle add with quantity selection
   const handleAddWithQuantity = (product, quantity = 1) => {
     if (quantity <= 0) return;
-    
+
     setQuickAddProduct(product.id);
-    
+
     addToCart({
       id: product.id,
       name: product.name,
@@ -494,704 +783,22 @@ export default function OrderScreen() {
       image: product.image,
       qty: quantity,
     });
-    
-    // Show success message
-    setAddSuccessItem(`${product.name[lang]} (${quantity})`);
+
+    setAddSuccessItem(`${product.name?.[lang] ?? ""} (${quantity})`);
     setShowAddSuccess(true);
-    
-    // Reset quick add state
-    setTimeout(() => {
-      setQuickAddProduct(null);
-    }, 500);
+
+    setTimeout(() => setQuickAddProduct(null), 500);
   };
 
-  // Get date range for filtering
-  const getDateRange = (range) => {
-    const now = new Date();
-    const start = new Date();
-    const end = new Date();
-    
-    switch(range) {
-      case 'today':
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
-      
-      case 'yesterday':
-        start.setDate(start.getDate() - 1);
-        start.setHours(0, 0, 0, 0);
-        end.setDate(end.getDate() - 1);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
-      
-      case 'thisWeek':
-        const day = start.getDay();
-        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
-        start.setDate(diff);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
-      
-      case 'thisMonth':
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-        end.setMonth(end.getMonth() + 1, 0);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
-      
-      case 'lastMonth':
-        start.setMonth(start.getMonth() - 1, 1);
-        start.setHours(0, 0, 0, 0);
-        end.setMonth(end.getMonth(), 0);
-        end.setHours(23, 59, 59, 999);
-        return { start, end };
-      
-      default:
-        return { start: null, end: null };
-    }
-  };
-
-  // Filter orders based on search and filter criteria
-  const filteredOrders = orders.filter(order => {
-    // Search query filter
-    if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
-      const matchesId = order.id.toLowerCase().includes(searchLower);
-      const matchesDate = formatDate(order.timestamp, lang).toLowerCase().includes(searchLower);
-      const matchesAmount = order.total.toString().includes(searchLower);
-      const matchesItems = order.items.some(item => 
-        item.name[lang].toLowerCase().includes(searchLower)
-      );
-      
-      if (!matchesId && !matchesDate && !matchesAmount && !matchesItems) {
-        return false;
-      }
-    }
-    
-    // Status filter
-    if (statusFilter !== 'all' && order.status !== statusFilter) {
-      return false;
-    }
-    
-    // Payment method filter
-    if (paymentMethodFilter !== 'all') {
-      if (paymentMethodFilter === 'qr' && order.paymentMethod !== 'qr') {
-        return false;
-      }
-      if (paymentMethodFilter === 'none' && order.paymentMethod !== 'none') {
-        return false;
-      }
-    }
-    
-    // Date range filter
-    if (dateRangeFilter !== 'all') {
-      const orderDate = new Date(order.timestamp);
-      
-      if (dateRangeFilter === 'custom') {
-        if (customStartDate && customEndDate) {
-          const startDate = new Date(customStartDate);
-          const endDate = new Date(customEndDate);
-          endDate.setHours(23, 59, 59, 999);
-          
-          if (orderDate < startDate || orderDate > endDate) {
-            return false;
-          }
-        }
-      } else {
-        const { start, end } = getDateRange(dateRangeFilter);
-        if (start && end && (orderDate < start || orderDate > end)) {
-          return false;
-        }
-      }
-    }
-    
-    return true;
-  });
-
-  // Sort orders
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    const dateA = new Date(a.timestamp);
-    const dateB = new Date(b.timestamp);
-    
-    switch(sortBy) {
-      case 'newest':
-        return dateB - dateA;
-      case 'oldest':
-        return dateA - dateB;
-      case 'highest':
-        return b.total - a.total;
-      case 'lowest':
-        return a.total - b.total;
-      default:
-        return dateB - dateA;
-    }
-  });
-
-  // Get statistics
-  const orderStats = {
-    totalOrders: filteredOrders.length,
-    totalRevenue: filteredOrders.reduce((sum, order) => sum + order.total, 0),
-    averageOrder: filteredOrders.length > 0 
-      ? filteredOrders.reduce((sum, order) => sum + order.total, 0) / filteredOrders.length 
-      : 0,
-    highestOrder: filteredOrders.length > 0 
-      ? Math.max(...filteredOrders.map(order => order.total))
-      : 0,
-    paidOrders: filteredOrders.filter(order => order.status === 'paid').length,
-    savedOrders: filteredOrders.filter(order => order.status === 'saved').length,
-  };
-
-  // Clear all filters
-  const clearAllFilters = () => {
-    setSearchQuery("");
-    setStatusFilter("all");
-    setPaymentMethodFilter("all");
-    setDateRangeFilter("all");
-    setCustomStartDate("");
-    setCustomEndDate("");
-    setSortBy("newest");
-  };
-
-  const printOrderReceipt = (order) => {
-    const printWindow = window.open('', '_blank');
-    const receiptDate = formatDate(order.timestamp, lang);
-    
-    const itemsList = order.items.map(item => 
-      `<tr>
-        <td>${item.name[lang]}</td>
-        <td style="text-align: center">${item.qty}</td>
-        <td style="text-align: right">$${item.price.toFixed(2)}</td>
-        <td style="text-align: right">$${(item.qty * item.price).toFixed(2)}</td>
-      </tr>`
-    ).join('');
-
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt - Order ${order.id}</title>
-        <style>
-          @media print {
-            @page { margin: 0; }
-            body { margin: 0.5cm; }
-            .no-print { display: none !important; }
-          }
-          body {
-            font-family: 'Courier New', monospace;
-            max-width: 80mm;
-            margin: 0 auto;
-            padding: 10px;
-            background: white;
-            color: black;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px dashed #000;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-          }
-          .restaurant-name {
-            font-size: 20px;
-            font-weight: bold;
-            margin-bottom: 5px;
-          }
-          .address {
-            font-size: 12px;
-            margin-bottom: 5px;
-          }
-          .receipt-info {
-            margin-bottom: 15px;
-          }
-          .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 3px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-          }
-          th {
-            text-align: left;
-            border-bottom: 1px dashed #000;
-            padding: 5px 0;
-            font-weight: bold;
-          }
-          td {
-            padding: 3px 0;
-          }
-          .total-section {
-            border-top: 2px dashed #000;
-            margin-top: 10px;
-            padding-top: 10px;
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-          }
-          .grand-total {
-            font-size: 18px;
-            font-weight: bold;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 11px;
-            border-top: 1px dashed #000;
-            padding-top: 10px;
-          }
-          .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 12px;
-            margin-left: 5px;
-          }
-          .print-button {
-            text-align: center;
-            margin-top: 20px;
-          }
-          button {
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="restaurant-name">RESTAURANT POS</div>
-          <div class="address">123 Main Street, Phnom Penh</div>
-          <div class="address">Tel: 012 345 678</div>
-        </div>
-        
-        <div class="receipt-info">
-          <div class="info-row">
-            <span>${t('orderId')}:</span>
-            <span><strong>${order.id}</strong></span>
-          </div>
-          <div class="info-row">
-            <span>${t('date')}:</span>
-            <span>${receiptDate}</span>
-          </div>
-          <div class="info-row">
-            <span>${t('status')}:</span>
-            <span>
-              ${getStatusText(order.status)}
-              <span class="status-badge" style="background: ${order.status === 'paid' ? '#d4edda' : '#cce5ff'}; color: ${order.status === 'paid' ? '#155724' : '#004085'}">
-                ${order.status === 'paid' ? '✓' : '💾'}
-              </span>
-            </span>
-          </div>
-        </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th>${t('name')}</th>
-              <th style="text-align: center">${t('qty')}</th>
-              <th style="text-align: right">${t('price')}</th>
-              <th style="text-align: right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsList}
-          </tbody>
-        </table>
-        
-        <div class="total-section">
-          <div class="total-row">
-            <span>${t('subTotal')}:</span>
-            <span>$${order.subtotal.toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <span>${t('discount')}:</span>
-            <span style="color: red">-$${order.discount.toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <span>${t('tax')} (1.5%):</span>
-            <span>$${order.tax.toFixed(2)}</span>
-          </div>
-          <div class="total-row grand-total">
-            <span>${t('total')}:</span>
-            <span>$${order.total.toFixed(2)}</span>
-          </div>
-        </div>
-        
-        <div class="footer">
-          <div>Thank you for your order!</div>
-          <div>--- ${lang === 'en' ? 'RECEIPT' : 'បង្កាន់ដៃ'} ---</div>
-          <div>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
-        </div>
-        
-        <div class="print-button no-print">
-          <button onclick="window.print()">${lang === 'en' ? 'Print Receipt' : 'បោះពុម្ពបង្កាន់ដៃ'}</button>
-          <button onclick="window.close()" style="background: #666; margin-left: 10px">${lang === 'en' ? 'Close' : 'បិទ'}</button>
-        </div>
-        
-        <script>
-          // Auto-print after a short delay
-          setTimeout(() => {
-            window.print();
-          }, 500);
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(receiptHTML);
-    printWindow.document.close();
-    
-    setTimeout(() => {
-      alert(t("receiptPrinted"));
-    }, 1000);
-  };
-
-  const exportOrderToCSV = (order) => {
-    const csvContent = [
-      ['Order ID', 'Date', 'Status', 'Item Name', 'Quantity', 'Price', 'Subtotal'],
-      ...order.items.map(item => [
-        order.id,
-        formatDate(order.timestamp, 'en'),
-        order.status,
-        item.name.en,
-        item.qty,
-        `$${item.price.toFixed(2)}`,
-        `$${(item.qty * item.price).toFixed(2)}`
-      ]),
-      [],
-      ['Subtotal:', `$${order.subtotal.toFixed(2)}`],
-      ['Discount:', `-$${order.discount.toFixed(2)}`],
-      ['Tax (1.5%):', `$${order.tax.toFixed(2)}`],
-      ['Total:', `$${order.total.toFixed(2)}`]
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `order_${order.id}_${new Date().getTime()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    alert(t("orderExported"));
-  };
-
-  const printAllOrders = () => {
-    if (orders.length === 0) {
-      alert(t("noOrders"));
-      return;
-    }
-    
-    const printWindow = window.open('', '_blank');
-    const printDate = new Date().toLocaleString();
-    
-    const ordersList = orders.map(order => `
-      <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; page-break-inside: avoid;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-          <div>
-            <strong>${t('orderId')}:</strong> ${order.id}<br>
-            <strong>${t('date')}:</strong> ${formatDate(order.timestamp, lang)}<br>
-            <strong>${t('status')}:</strong> ${getStatusText(order.status)}
-          </div>
-          <div style="text-align: right;">
-            <strong style="font-size: 18px;">$${order.total.toFixed(2)}</strong>
-          </div>
-        </div>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="border-bottom: 2px solid #000;">
-              <th style="text-align: left; padding: 5px 0;">${t('items')}</th>
-              <th style="text-align: right; padding: 5px 0;">${t('qty')}</th>
-              <th style="text-align: right; padding: 5px 0;">${t('price')}</th>
-              <th style="text-align: right; padding: 5px 0;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.items.map(item => `
-              <tr>
-                <td style="padding: 3px 0;">${item.name[lang]}</td>
-                <td style="text-align: right; padding: 3px 0;">${item.qty}</td>
-                <td style="text-align: right; padding: 3px 0;">$${item.price.toFixed(2)}</td>
-                <td style="text-align: right; padding: 3px 0;">$${(item.qty * item.price).toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div style="margin-top: 10px; text-align: right;">
-          <div>${t('subTotal')}: $${order.subtotal.toFixed(2)}</div>
-          <div>${t('discount')}: -$${order.discount.toFixed(2)}</div>
-          <div>${t('tax')}: $${order.tax.toFixed(2)}</div>
-          <div style="font-weight: bold; font-size: 16px;">${t('total')}: $${order.total.toFixed(2)}</div>
-        </div>
-      </div>
-    `).join('');
-
-    const allOrdersHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>All Orders Report</title>
-        <style>
-          @media print {
-            @page { margin: 1cm; }
-            body { margin: 0; }
-            .no-print { display: none !important; }
-          }
-          body {
-            font-family: Arial, sans-serif;
-            max-width: 210mm;
-            margin: 0 auto;
-            padding: 20px;
-            background: white;
-            color: black;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #000;
-            padding-bottom: 20px;
-          }
-          .summary {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 5px;
-          }
-          .summary-item {
-            text-align: center;
-          }
-          .summary-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #4CAF50;
-          }
-          .print-button {
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #ccc;
-          }
-          button {
-            padding: 12px 25px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 0 5px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${lang === 'en' ? 'Orders Report' : 'របាយការណ៍កម្មង់'}</h1>
-          <div>${printDate}</div>
-          <div>Total Orders: ${orders.length}</div>
-        </div>
-        
-        <div class="summary">
-          <div class="summary-item">
-            <div>${t('total')}</div>
-            <div class="summary-value">$${orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}</div>
-          </div>
-          <div class="summary-item">
-            <div>${t('paid')}</div>
-            <div class="summary-value">${orders.filter(o => o.status === 'paid').length}</div>
-          </div>
-          <div class="summary-item">
-            <div>${t('saved')}</div>
-            <div class="summary-value">${orders.filter(o => o.status === 'saved').length}</div>
-          </div>
-        </div>
-        
-        ${ordersList}
-        
-        <div class="print-button no-print">
-          <button onclick="window.print()">${lang === 'en' ? 'Print Report' : 'បោះពុម្ពរបាយការណ៍'}</button>
-          <button onclick="window.close()" style="background: #666">${lang === 'en' ? 'Close' : 'បិទ'}</button>
-        </div>
-        
-        <script>
-          setTimeout(() => {
-            window.print();
-          }, 500);
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(allOrdersHTML);
-    printWindow.document.close();
-    
-    setTimeout(() => {
-      alert(t("printAllOrders"));
-    }, 1000);
-  };
-
-  const handleEditOrder = (order) => {
-    if (order.status === 'paid') {
-      alert(t("cannotEditPaid"));
-      return;
-    }
-    
-    if (window.confirm(t("confirmEditOrder"))) {
-      // Clear current cart
-      clearCart();
-      
-      // Load order items into cart
-      order.items.forEach(item => {
-        addToCart({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          qty: item.qty,
-        });
-      });
-      
-      // Set discount percentage based on order
-      const calculatedDiscountPercent = order.subtotal > 0 ? (order.discount / order.subtotal) * 100 : 0;
-      setDiscountPercent(calculatedDiscountPercent);
-      
-      // Set editing order ID
-      setEditingOrderId(order.id);
-      
-      // Close order history modal
-      setShowOrderHistory(false);
-      
-      alert(t("orderLoaded"));
-    }
-  };
-
-  const handleDuplicateOrder = (order) => {
-    // Clear current cart
-    clearCart();
-    
-    // Load order items into cart
-    order.items.forEach(item => {
-      addToCart({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        image: item.image,
-        qty: item.qty,
-      });
-    });
-    
-    // Set discount percentage based on order
-    const calculatedDiscountPercent = order.subtotal > 0 ? (order.discount / order.subtotal) * 100 : 0;
-    setDiscountPercent(calculatedDiscountPercent);
-    
-    // Reset editing order ID
-    setEditingOrderId(null);
-    
-    // Close order history modal
-    setShowOrderHistory(false);
-    
-    alert(t("orderLoaded"));
-  };
-
-  const handleDeleteOrder = (orderId) => {
-    if (window.confirm(t("confirmDeleteOrder"))) {
-      setOrders(orders.filter(order => order.id !== orderId));
-      alert(t("orderDeleted"));
-    }
-  };
-
-  const handleUpdateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => 
-      order.id === orderId ? {
-        ...order,
-        status: newStatus,
-        timestamp: getCurrentDate()
-      } : order
-    ));
-    alert(t("orderUpdated"));
-  };
-
-  const handleSaveOrder = () => {
-    if (items.length === 0) {
-      alert(t("cartEmpty"));
-      return;
-    }
-    
-    const orderData = {
-      id: editingOrderId || `ORD-${Date.now()}`,
-      items: items.map(item => ({
-        ...item,
-        addedAt: getCurrentDate()
-      })),
-      subtotal: totals.subtotal,
-      discount: discountAmount,
-      tax: taxAmount,
-      total: totalAmount,
-      timestamp: getCurrentDate(),
-      status: "saved",
-      paymentMethod: "none",
-    };
-    
-    if (editingOrderId) {
-      // Update existing order
-      setOrders(orders.map(order => 
-        order.id === editingOrderId ? orderData : order
-      ));
-      setEditingOrderId(null);
-      alert(lang === 'en' ? 'Order updated successfully!' : 'កម្មង់ត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ!');
-    } else {
-      // Create new order
-      setOrders([orderData, ...orders]);
-      alert(t("orderSaved"));
-    }
-    
-    // Clear cart after saving
-    clearCart();
-    setDiscountPercent(20);
-  };
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (!file.type.match('image.*')) {
-        alert(t("selectImageFile"));
-        return;
-      }
-      
-      if (file.size > 5 * 1024 * 1024) {
-        alert(t("fileTooLarge"));
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setNewItem({
-          ...newItem,
-          image: file,
-          imagePreview: e.target.result,
-          imageUrl: ""
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
+  // -------------------- MODAL: ADD / EDIT PRODUCT --------------------
   const openAddItemModal = () => {
     setModalMode("add");
+    setEditingItemId(null);
+    setImageError(false);
     setNewItem({
       name: "",
       price: "",
-      category: "Coffee",
+      category: categoryOptions?.[0] ?? "Coffee",
       image: null,
       imagePreview: null,
       imageUrl: "",
@@ -1203,16 +810,55 @@ export default function OrderScreen() {
   const openEditItemModal = (product) => {
     setModalMode("edit");
     setEditingItemId(product.id);
+    setImageError(false);
     setNewItem({
-      name: product.name.en,
-      price: product.price.toString(),
-      category: product.category,
+      name: product?.name?.en ?? "",
+      price: String(product?.price ?? ""),
+      category: product?.category ?? categoryOptions?.[0] ?? "Coffee",
       image: null,
       imagePreview: null,
-      imageUrl: product.image,
+      imageUrl: product?.image ?? "",
     });
     setUploadMethod("url");
     setShowItemModal(true);
+  };
+
+  const openFileInput = () => fileInputRef.current?.click();
+
+  const resetImage = () => {
+    setImageError(false);
+    setNewItem((prev) => ({
+      ...prev,
+      image: null,
+      imagePreview: null,
+      imageUrl: "",
+    }));
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match("image.*")) {
+      alert(t("selectImageFile"));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert(t("fileTooLarge"));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setNewItem((prev) => ({
+        ...prev,
+        image: file,
+        imagePreview: e.target.result,
+        imageUrl: "",
+      }));
+      setImageError(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveItem = async () => {
@@ -1221,136 +867,146 @@ export default function OrderScreen() {
       return;
     }
 
-    let imageUrl = newItem.imageUrl;
-    
+    let imageUrl = normalizeImageUrl(newItem.imageUrl || "");
+
     if (uploadMethod === "file" && newItem.image) {
       setIsUploading(true);
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        if (newItem.imagePreview) {
-          imageUrl = newItem.imagePreview;
-          alert(t("uploadComplete"));
-        }
-      } catch (error) {
-        alert(lang === "en" ? "Failed to upload image" : "ផ្ទុករូបភាពមិនជោគជ័យ");
+        const formData = new FormData();
+        formData.append("file", newItem.image);
+
+        const res = await api.post("/api/products/upload-image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        imageUrl = res.data.trim();
+      } catch (err) {
+        console.error("Upload error:", err);
+        const errorMsg =
+          err.response?.data ||
+          err.message ||
+          "Failed to upload image. Please try again.";
+        alert(errorMsg);
         setIsUploading(false);
         return;
+      } finally {
+        setIsUploading(false);
       }
-      setIsUploading(false);
-    } else if (!imageUrl) {
-      const defaultImages = {
-        Coffee: "https://images.unsplash.com/photo-1513118171418-46b8c4e07e43?w=300&h=200&fit=crop",
-        Beverages: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=300&h=200&fit=crop",
-        BBQ: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=300&h=200&fit=crop",
-        Snacks: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=300&h=200&fit=crop",
-        Deserts: "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=300&h=200&fit=crop",
-      };
-      imageUrl = defaultImages[newItem.category] || defaultImages.Coffee;
     }
 
-    const currentTime = getCurrentDate();
+    if (!imageUrl) {
+      imageUrl = getDefaultImageByCategory(newItem.category);
+    }
 
-    if (modalMode === "add") {
-      const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-      const newProduct = {
-        id: newId,
-        category: newItem.category,
-        name: { 
-          en: newItem.name, 
-          km: newItem.name
-        },
+    const catId = categoryIdByName[newItem.category];
+    if (!catId && categories.length > 0) {
+      alert(`Category "${newItem.category}" not found in DB. Create it first.`);
+      return;
+    }
+
+    try {
+      const uiPayload = {
+        name: { en: newItem.name, km: newItem.name },
         price: parseFloat(newItem.price),
+        category: newItem.category,
+        available: true,
+        stockQty: 0,
+        cost: 0,
         image: imageUrl,
-        createdAt: currentTime,
-        updatedAt: currentTime,
       };
 
-      setProducts([newProduct, ...products]);
-      
-      // Auto-add to cart option
-      const shouldAddToCart = window.confirm(
-        lang === "en" 
-          ? "Add this item to cart?" 
-          : "បន្ថែមទំនិញនេះទៅក្នុងរទេះទំនិញ?"
-      );
-      
-      if (shouldAddToCart) {
-        handleAddWithQuantity({
-          id: newId,
-          name: { en: newItem.name, km: newItem.name },
-          price: parseFloat(newItem.price),
-          image: imageUrl,
-        }, 1);
+      let result;
+      if (modalMode === "add") {
+        result = await apiCreateProduct(toApiProduct(uiPayload, catId));
+      } else {
+        result = await apiUpdateProduct(
+          editingItemId,
+          toApiProduct(uiPayload, catId),
+        );
       }
 
-      alert(t("addItemSuccess"));
-    } else {
-      // Edit mode - update existing product
-      setProducts(products.map(p => 
-        p.id === editingItemId ? {
-          ...p,
-          category: newItem.category,
-          name: { 
-            en: newItem.name, 
-            km: newItem.name
-          },
-          price: parseFloat(newItem.price),
-          image: imageUrl,
-          updatedAt: currentTime,
-        } : p
-      ));
+      const mapped = toUiProduct(result, categoriesById);
+      mapped.image = getImageUrl(imageUrl);
 
-      alert(t("updateItemSuccess"));
+      if (modalMode === "add") {
+        setProducts((prev) => [mapped, ...prev]);
+      } else {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === editingItemId ? mapped : p)),
+        );
+      }
+
+      alert(modalMode === "add" ? t("addItemSuccess") : t("updateItemSuccess"));
+      setShowItemModal(false);
+      resetImage();
+    } catch (e) {
+      console.error("Save item error:", e);
+      alert(`Save product error: ${e?.response?.data?.message ?? e.message}`);
     }
-
-    // Reset form
-    setNewItem({
-      name: "",
-      price: "",
-      category: "Coffee",
-      image: null,
-      imagePreview: null,
-      imageUrl: "",
-    });
-    setUploadMethod("url");
-    setShowItemModal(false);
   };
 
-  const handleDeleteItem = (productId, e) => {
+  const handleDeleteItem = async (productId, e) => {
     if (e) e.stopPropagation();
-    if (window.confirm(t("confirmDelete"))) {
-      setProducts(products.filter(p => p.id !== productId));
-      
-      const cartItem = items.find(item => item.id === productId);
-      if (cartItem) {
-        removeFromCart(productId);
-      }
-      
+    if (!window.confirm(t("confirmDelete"))) return;
+
+    try {
+      await apiDeleteProduct(productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+
+      const cartItem = items.find((it) => it.id === productId);
+      if (cartItem) removeFromCart(productId);
+
       alert(t("deleteItemSuccess"));
+    } catch (err) {
+      console.error(err);
+      alert(
+        `Delete product error: ${err?.response?.data?.message ?? err.message}`,
+      );
     }
   };
 
-  const apply20PercentDiscount = () => {
-    setDiscountPercent(20);
-    alert(t("apply20Discount"));
-  };
-
+  // -------------------- ORDER ACTIONS --------------------
   const handleCancelOrder = () => {
     if (window.confirm(t("confirmCancel"))) {
       clearCart();
-      setDiscountPercent(20);
+      setDiscountPercent(DEFAULT_DISCOUNT);
       setEditingOrderId(null);
     }
   };
 
-  const handleHoldOrder = () => {
-    if (window.confirm(t("confirmHold"))) {
-      alert(t("orderHeld"));
+  const handleSaveOrder = async () => {
+    if (items.length === 0) {
+      alert(t("cartEmpty"));
+      return;
+    }
+
+    const payload = buildOrderPayload({
+      items,
+      status: "saved",
+      user,
+    });
+    await apiCreateOrder(payload);
+
+    try {
+      if (editingOrderId) {
+        await apiUpdateOrder(editingOrderId, payload);
+        setEditingOrderId(null);
+      } else {
+        await apiCreateOrder(payload);
+      }
+      await refreshOrders();
+
+      clearCart();
+      setDiscountPercent(DEFAULT_DISCOUNT);
+      alert(t("orderSaved"));
+    } catch (e) {
+      console.error(e);
+      alert(`Save order error: ${e?.response?.data?.message ?? e.message}`);
     }
   };
 
-  const handleQRPayment = () => {
+  // ✅ Separate Payment button
+  const openPaymentModal = () => {
     if (items.length === 0) {
       alert(t("cartEmpty"));
       return;
@@ -1358,57 +1014,464 @@ export default function OrderScreen() {
     setShowQRModal(true);
   };
 
-  const processPayment = () => {
+  const processPayment = async () => {
+    if (items.length === 0) {
+      alert(t("cartEmpty"));
+      return;
+    }
+
+    if (parseFloat(cashReceived || 0) < totalAmount) {
+      alert("Cash is not enough.");
+      return;
+    }
+
     setIsProcessingPayment(true);
-    
-    const orderData = {
-      id: editingOrderId || `ORD-${Date.now()}`,
-      items: items.map(item => ({
-        ...item,
-        addedAt: getCurrentDate()
-      })),
-      subtotal: totals.subtotal,
-      discount: discountAmount,
-      tax: taxAmount,
-      total: totalAmount,
-      timestamp: getCurrentDate(),
-      status: "paid",
-      paymentMethod: "qr",
-    };
-    
-    setTimeout(() => {
-      if (editingOrderId) {
-        // Update existing order
-        setOrders(orders.map(order => 
-          order.id === editingOrderId ? orderData : order
-        ));
-        setEditingOrderId(null);
-      } else {
-        // Create new order
-        setOrders([orderData, ...orders]);
-      }
-      
-      setIsProcessingPayment(false);
-      alert(t("paymentSuccess"));
+
+    try {
+      // 1️⃣ Create order
+      const createPayload = {
+        userId: user?.userId ?? null,
+        customerId: null,
+        tableId: null,
+        orderType: "POS",
+        orderStatus: "SAVED",
+        items: items.map((it) => ({
+          productId: it.id,
+          quantity: it.qty,
+          unitPrice: it.price,
+        })),
+      };
+
+      const createdOrder = await apiCreateOrder(createPayload);
+      const orderId = createdOrder.orderId;
+
+      // 2️⃣ Pay order
+      await apiPayOrder(orderId, {
+        paymentType: "CASH",
+        paidAmount: parseFloat(cashReceived),
+      });
+
+      await refreshOrders();
+
       clearCart();
+      setCashReceived("");
       setShowQRModal(false);
-      setDiscountPercent(20);
-    }, 2000);
+      setDiscountPercent(DEFAULT_DISCOUNT);
+
+      alert(t("paymentSuccess"));
+    } catch (e) {
+      alert(e?.response?.data?.message ?? e.message);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
-  const openFileInput = () => {
-    fileInputRef.current.click();
+  // -------------------- ORDER HISTORY HELPERS --------------------
+  const getStatusText = (status) => {
+    switch (status) {
+      case "paid":
+        return t("paid");
+      case "saved":
+        return t("saved");
+      default:
+        return status;
+    }
   };
 
-  const resetImage = () => {
-    setNewItem({
-      ...newItem,
-      image: null,
-      imagePreview: null,
-      imageUrl: ""
+  const getStatusBadge = (status) => {
+    if (status === "paid") return "bg-green-100 text-green-800";
+    if (status === "saved") return "bg-blue-100 text-blue-800";
+    return "bg-gray-100 text-gray-800";
+  };
+
+  const clearHistoryFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSortBy("newest");
+  };
+
+  const viewOrderHistory = () => {
+    setShowOrderHistory(true);
+    clearHistoryFilters();
+    refreshOrders();
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (statusFilter !== "all" && order.status !== statusFilter) return false;
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchId = String(order.id).toLowerCase().includes(q);
+        const matchDate = formatDate(order.timestamp, lang)
+          .toLowerCase()
+          .includes(q);
+        const matchTotal = String(order.total).toLowerCase().includes(q);
+        const matchItem = order.items.some((it) =>
+          (it?.name?.[lang] ?? "").toLowerCase().includes(q),
+        );
+        if (!matchId && !matchDate && !matchTotal && !matchItem) return false;
+      }
+
+      return true;
     });
+  }, [orders, statusFilter, searchQuery, lang]);
+
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      const dateA = new Date(a.timestamp);
+      const dateB = new Date(b.timestamp);
+
+      if (sortBy === "oldest") return dateA - dateB;
+      if (sortBy === "highest") return b.total - a.total;
+      if (sortBy === "lowest") return a.total - b.total;
+      return dateB - dateA; // newest default
+    });
+  }, [filteredOrders, sortBy]);
+
+  const handleEditOrder = (order) => {
+    if (order.status === "paid") {
+      alert(t("cannotEditPaid"));
+      return;
+    }
+    if (window.confirm(t("confirmEditOrder"))) {
+      clearCart();
+      order.items.forEach((item) => {
+        addToCart({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          qty: item.qty,
+        });
+      });
+
+      const calcDiscountPercent =
+        order.subtotal > 0 ? (order.discount / order.subtotal) * 100 : 0;
+      setDiscountPercent(
+        Number.isFinite(calcDiscountPercent)
+          ? calcDiscountPercent
+          : DEFAULT_DISCOUNT,
+      );
+
+      setEditingOrderId(order.id);
+      setShowOrderHistory(false);
+      alert(t("orderLoaded"));
+    }
   };
 
+  const handleDuplicateOrder = (order) => {
+    clearCart();
+    order.items.forEach((item) => {
+      addToCart({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        qty: item.qty,
+      });
+    });
+
+    const calcDiscountPercent =
+      order.subtotal > 0 ? (order.discount / order.subtotal) * 100 : 0;
+    setDiscountPercent(
+      Number.isFinite(calcDiscountPercent)
+        ? calcDiscountPercent
+        : DEFAULT_DISCOUNT,
+    );
+
+    setEditingOrderId(null);
+    setShowOrderHistory(false);
+    alert(t("orderLoaded"));
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm(t("confirmDeleteOrder"))) return;
+    try {
+      await apiDeleteOrder(orderId);
+      await refreshOrders();
+      alert(t("orderDeleted"));
+    } catch (e) {
+      console.error(e);
+      alert(`Delete order error: ${e?.response?.data?.message ?? e.message}`);
+    }
+  };
+
+  const handleUpdateOrderStatus = async (order, newStatus) => {
+    try {
+      const payload = {
+        orderStatus: newStatus.toUpperCase(),
+        totalAmount: Number(order.total.toFixed(2)),
+      };
+      await apiUpdateOrder(order.id, payload);
+      await refreshOrders();
+      alert(t("orderUpdated"));
+    } catch (e) {
+      console.error(e);
+      alert(`Update order error: ${e?.response?.data?.message ?? e.message}`);
+    }
+  };
+
+  const printOrderReceipt = (order) => {
+    const printWindow = window.open("", "_blank");
+    const receiptDate = formatDate(order.timestamp, lang);
+
+    const itemsList = order.items
+      .map(
+        (item) => `
+      <tr>
+        <td>${item.name?.[lang] ?? ""}</td>
+        <td style="text-align: center">${item.qty}</td>
+        <td style="text-align: right">$${Number(item.price).toFixed(2)}</td>
+        <td style="text-align: right">$${(item.qty * item.price).toFixed(2)}</td>
+      </tr>`,
+      )
+      .join("");
+
+    const receiptHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - Order ${order.id}</title>
+        <style>
+          @media print { @page { margin: 0; } body { margin: 0.5cm; } .no-print { display: none !important; } }
+          body { font-family: 'Courier New', monospace; max-width: 80mm; margin: 0 auto; padding: 10px; background: white; color: black; }
+          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 15px; }
+          .restaurant-name { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+          .address { font-size: 12px; margin-bottom: 5px; }
+          .receipt-info { margin-bottom: 15px; }
+          .info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+          th { text-align: left; border-bottom: 1px dashed #000; padding: 5px 0; font-weight: bold; }
+          td { padding: 3px 0; }
+          .total-section { border-top: 2px dashed #000; margin-top: 10px; padding-top: 10px; }
+          .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+          .grand-total { font-size: 18px; font-weight: bold; }
+          .footer { text-align: center; margin-top: 20px; font-size: 11px; border-top: 1px dashed #000; padding-top: 10px; }
+          .print-button { text-align: center; margin-top: 20px; }
+          button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="restaurant-name">RESTAURANT POS</div>
+          <div class="address">123 Main Street, Phnom Penh</div>
+          <div class="address">Tel: 012 345 678</div>
+        </div>
+
+        <div class="receipt-info">
+          <div class="info-row"><span>${t("orderId")}:</span><span><strong>${order.id}</strong></span></div>
+          <div class="info-row"><span>${t("date")}:</span><span>${receiptDate}</span></div>
+          <div class="info-row"><span>${t("status")}:</span><span>${getStatusText(order.status)}</span></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>${t("name")}</th>
+              <th style="text-align: center">${t("qty")}</th>
+              <th style="text-align: right">${t("price")}</th>
+              <th style="text-align: right">Total</th>
+            </tr>
+          </thead>
+          <tbody>${itemsList}</tbody>
+        </table>
+
+        <div class="total-section">
+          <div class="total-row"><span>${t("subTotal")}:</span><span>$${Number(order.subtotal).toFixed(2)}</span></div>
+          <div class="total-row"><span>${t("discount")}:</span><span style="color: red">-$${Number(order.discount).toFixed(2)}</span></div>
+          <div class="total-row"><span>${t("tax")} (1.5%):</span><span>$${Number(order.tax).toFixed(2)}</span></div>
+          <div class="total-row grand-total"><span>${t("total")}:</span><span>$${Number(order.total).toFixed(2)}</span></div>
+        </div>
+
+        <div class="footer">
+          <div>Thank you for your order!</div>
+          <div>--- ${lang === "en" ? "RECEIPT" : "បង្កាន់ដៃ"} ---</div>
+          <div>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        </div>
+
+        <div class="print-button no-print">
+          <button onclick="window.print()">${lang === "en" ? "Print Receipt" : "បោះពុម្ពបង្កាន់ដៃ"}</button>
+          <button onclick="window.close()" style="background: #666; margin-left: 10px">${t("close")}</button>
+        </div>
+
+        <script>setTimeout(() => window.print(), 400);</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
+  };
+
+  const exportOrderToCSV = (order) => {
+    const csvContent = [
+      [
+        "Order ID",
+        "Date",
+        "Status",
+        "Item Name",
+        "Quantity",
+        "Price",
+        "Subtotal",
+      ],
+      ...order.items.map((item) => [
+        order.id,
+        formatDate(order.timestamp, "en"),
+        order.status,
+        item.name?.en ?? "",
+        item.qty,
+        `$${Number(item.price).toFixed(2)}`,
+        `$${Number(item.qty * item.price).toFixed(2)}`,
+      ]),
+      [],
+      ["Subtotal:", `$${Number(order.subtotal).toFixed(2)}`],
+      ["Discount:", `-$${Number(order.discount).toFixed(2)}`],
+      ["Tax (1.5%):", `$${Number(order.tax).toFixed(2)}`],
+      ["Total:", `$${Number(order.total).toFixed(2)}`],
+    ]
+      .map((row) => row.join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `order_${order.id}_${new Date().getTime()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    alert(t("orderExported"));
+  };
+
+  const printAllOrders = () => {
+    if (orders.length === 0) {
+      alert(t("noOrders"));
+      return;
+    }
+    const printWindow = window.open("", "_blank");
+    const rows = orders
+      .map(
+        (order) => `
+    <tr>
+      <td>#${order.id}</td>
+      <td>${formatDate(order.timestamp, lang)}</td>
+      <td>${order.items.length}</td>
+      <td>$${Number(order.total).toFixed(2)}</td>
+      <td>${order.status.toUpperCase()}</td>
+    </tr>
+  `,
+      )
+      .join("");
+    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>All Orders Report</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          padding: 20px;
+        }
+        h1 {
+          text-align: center;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 20px;
+        }
+        th, td {
+          border: 1px solid #ddd;
+          padding: 8px;
+          text-align: center;
+        }
+        th {
+          background-color: #f4f4f4;
+        }
+        .total {
+          margin-top: 20px;
+          font-size: 18px;
+          font-weight: bold;
+          text-align: right;
+        }
+        @media print {
+          button { display: none; }
+        }
+        .print-container {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.print-btn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+
+.print-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+}
+
+.print-btn:active {
+  transform: scale(0.98);
+}
+
+@media print {
+  .print-container {
+    display: none;
+  }
+}
+      </style>
+    </head>
+    <body>
+      <h1>All Orders Report</h1>
+      <p>Date: ${new Date().toLocaleString()}</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Date</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <div class="total">
+        Total Revenue: $${totalRevenue.toFixed(2)}
+      </div>
+
+      <br/>
+      <div class="print-container">
+  <button class="print-btn" onclick="window.print()">🖨 Print Report</button>
+</div>
+    </body>
+    </html>
+  `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // -------------------- QR --------------------
   const generateQRCodeData = () => {
     const paymentData = {
       amount: totalAmount.toFixed(2),
@@ -1421,7 +1484,7 @@ export default function OrderScreen() {
   };
 
   const renderQRCode = () => {
-    const qrData = generateQRCodeData();
+    generateQRCodeData();
     return (
       <div className="text-center">
         <div className="bg-white p-6 rounded-xl inline-block border-4 border-black shadow-lg">
@@ -1429,7 +1492,9 @@ export default function OrderScreen() {
             <QrCode size={180} className="mx-auto text-black" />
           </div>
           <div className="mt-2 text-sm text-gray-600">
-            {lang === "en" ? "Scan QR code to pay" : "ស្កេន QR code ដើម្បីទូទាត់"}
+            {lang === "en"
+              ? "Scan QR code to pay"
+              : "ស្កេន QR code ដើម្បីទូទាត់"}
           </div>
           <div className="mt-1 text-xs text-gray-500">
             ${totalAmount.toFixed(2)}
@@ -1439,27 +1504,7 @@ export default function OrderScreen() {
     );
   };
 
-  const viewOrderHistory = () => {
-    setShowOrderHistory(true);
-    clearAllFilters(); // Reset filters when opening
-  };
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'saved': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch(status) {
-      case 'paid': return t('paid');
-      case 'saved': return t('saved');
-      default: return status;
-    }
-  };
-
+  // -------------------- UI --------------------
   return (
     <div className="flex h-full gap-4 p-4 overflow-hidden">
       {/* SUCCESS TOAST */}
@@ -1476,15 +1521,22 @@ export default function OrderScreen() {
 
       {/* LEFT SIDEBAR */}
       <div className="w-64 bg-white rounded-2xl p-4 flex flex-col">
-        <button 
+        <button
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold mb-4 flex items-center justify-center gap-2"
           onClick={openAddItemModal}
         >
           <Plus size={20} />
           {t("addNewItem")}
         </button>
-        
-        <div className="mb-6">
+        <button
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold mb-4 flex items-center justify-center gap-2"
+          onClick={openAddCategory}
+        >
+          <Plus size={18} />
+          {t("addCategory")}
+        </button>
+
+        <div className="mb-5">
           <div className="relative">
             <input
               className="w-full border rounded-xl px-4 py-3 pl-10"
@@ -1492,187 +1544,121 @@ export default function OrderScreen() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
+            <Search
+              className="absolute left-3 top-3.5 text-gray-400"
+              size={18}
+            />
           </div>
         </div>
 
         <div className="space-y-2 mb-6 flex-1 overflow-y-auto pr-2">
           <button
             className={`w-full py-3 rounded-xl text-sm font-semibold ${
-              category === "All" ? "bg-green-100 text-green-700 border-2 border-green-500" : "bg-gray-100 hover:bg-gray-200"
+              category === "All"
+                ? "bg-green-100 text-green-700 border-2 border-green-500"
+                : "bg-gray-100 hover:bg-gray-200"
             }`}
             onClick={() => setCategory("All")}
           >
             {lang === "en" ? "All Items" : "ទំនិញទាំងអស់"}
           </button>
-          
-          {CATEGORIES.map((c) => (
-            <button
-              key={c}
-              className={`w-full py-3 rounded-xl text-sm font-semibold ${
-                category === c ? "bg-green-100 text-green-700 border-2 border-green-500" : "bg-gray-100 hover:bg-gray-200"
-              }`}
-              onClick={() => setCategory(c)}
-            >
-              {lang === "en" ? c : translateCategory(c)}
-            </button>
-          ))}
+
+          {categories.length === 0
+            ? categoryOptions.map((c) => (
+                <button
+                  key={c}
+                  className={`w-full py-3 rounded-xl text-sm font-semibold ${
+                    category === c
+                      ? "bg-green-100 text-green-700 border-2 border-green-500"
+                      : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                  onClick={() => setCategory(c)}
+                >
+                  {lang === "en" ? c : translateCategory(c)}
+                </button>
+              ))
+            : categories.map((cat) => (
+                <div key={cat.categoryId} className="relative group">
+                  <button
+                    className={`w-full py-3 rounded-xl text-sm font-semibold ${
+                      category === cat.categoryName
+                        ? "bg-green-100 text-green-700 border-2 border-green-500"
+                        : "bg-gray-100 hover:bg-gray-200"
+                    }`}
+                    onClick={() => setCategory(cat.categoryName)}
+                  >
+                    {lang === "en"
+                      ? cat.categoryName
+                      : translateCategory(cat.categoryName)}
+                  </button>
+
+                  {/* Edit/Delete buttons */}
+                  <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 flex gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditCategory(cat);
+                      }}
+                      className="bg-blue-500 text-white p-1 rounded"
+                      title={t("editCategory")}
+                    >
+                      <Edit2 size={12} />
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(cat);
+                      }}
+                      className="bg-red-500 text-white p-1 rounded"
+                      title={t("deleteOrder")}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ))}
         </div>
 
-        <div className="mt-6 p-3 bg-gray-50 rounded-xl mb-4">
+        <div className="mt-2 p-3 bg-gray-50 rounded-xl mb-4">
           <p className="text-sm font-medium mb-2">{t("totalProducts")}</p>
-          <p className="text-2xl font-bold text-green-600">{products.length}</p>
+          <p className="text-2xl font-bold text-green-600">
+            {loadingProducts ? "…" : products.length}
+          </p>
           <p className="text-xs text-gray-500 mt-1">{t("itemsInMenu")}</p>
         </div>
 
-        <button 
+        <button
           className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-xl font-bold mb-3 flex items-center justify-center gap-2"
           onClick={viewOrderHistory}
         >
           <History size={18} />
           {t("orderHistory")}
         </button>
-
-        <button 
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black text-lg"
-          onClick={handleQRPayment}
-        >
-          {t("checkout")}
-        </button>
       </div>
 
       {/* CENTER - PRODUCT GRID */}
       <div className="flex-1 bg-white rounded-2xl p-4 flex flex-col overflow-hidden">
-        {products.length > 0 && (
-          <div className="mb-6 flex-shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <Star size={18} className="text-yellow-500" />
-                {t("popular")}
-              </h3>
-              <span className="text-sm text-gray-500">
-                {products.length} {lang === 'en' ? 'items' : 'ទំនិញ'}
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-3">
-              {popularItems.map((p) => (
-                <div
-                  key={p.id}
-                  className="border rounded-xl p-3 text-center hover:shadow-lg cursor-pointer transition-all relative group bg-gradient-to-b from-white to-gray-50"
-                >
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditItemModal(p);
-                      }}
-                      className="bg-blue-500 text-white p-1 rounded-lg hover:bg-blue-600"
-                      title={t("editItem")}
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button 
-                      onClick={(e) => handleDeleteItem(p.id, e)}
-                      className="bg-red-500 text-white p-1 rounded-lg hover:bg-red-600"
-                      title={t("deleteItem")}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <div>
-                    <img
-                      src={p.image}
-                      alt={p.name[lang]}
-                      className="w-full h-24 object-cover rounded-lg mb-2 border"
-                      onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/300x200?text=No+Image";
-                      }}
-                    />
-                    <div className="text-sm font-semibold mb-1 line-clamp-1">
-                      {p.name[lang]}
-                    </div>
-                    <div className="text-green-600 font-bold">${p.price.toFixed(2)}</div>
-                    <div className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-1">
-                      <Calendar size={10} />
-                      {formatDate(p.createdAt, lang)}
-                    </div>
-                  </div>
-                  
-                  {/* Quick Add Button */}
-                  <div className="mt-3">
-                    <button
-                      onClick={(e) => handleQuickAdd(p, e)}
-                      disabled={quickAddProduct === p.id}
-                      className={`w-full py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
-                        quickAddProduct === p.id
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-500 hover:bg-green-600 text-white'
-                      }`}
-                    >
-                      {quickAddProduct === p.id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          {lang === 'en' ? 'Adding...' : 'កំពុងបន្ថែម...'}
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart size={16} />
-                          {t("quickAdd")}
-                        </>
-                      )}
-                    </button>
-                    
-                    {/* Quantity Selector */}
-                    <div className="flex items-center gap-1 mt-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const cartItem = items.find(item => item.id === p.id);
-                          const currentQty = cartItem ? cartItem.qty : 0;
-                          if (currentQty > 0) {
-                            updateQty(p.id, -1);
-                          }
-                        }}
-                        className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center text-gray-600"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="flex-1 text-center text-sm font-medium">
-                        {items.find(item => item.id === p.id)?.qty || 0} in cart
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddWithQuantity(p, 1);
-                        }}
-                        className="w-8 h-8 bg-blue-100 hover:bg-blue-200 rounded flex items-center justify-center text-blue-600"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4 shrink-0">
           <h2 className="text-lg font-bold">
-            {category === "All" 
-              ? (lang === "en" ? "All Items" : "ទំនិញទាំងអស់") 
-              : (lang === "en" ? category : translateCategory(category))}
-            <span className="ml-2 text-sm text-gray-500">({filteredProducts.length})</span>
+            {category === "All"
+              ? lang === "en"
+                ? "All Items"
+                : "ទំនិញទាំងអស់"
+              : lang === "en"
+                ? category
+                : translateCategory(category)}
+            <span className="ml-2 text-sm text-gray-500">
+              ({filteredProducts.length})
+            </span>
           </h2>
-          <button 
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-            onClick={() => setCategory("All")}
-          >
-            {t("viewAll")}
-          </button>
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {loadingProducts ? (
+          <div className="text-center py-16 flex-1 flex flex-col justify-center text-gray-500">
+            Loading products...
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16 flex-1 flex flex-col justify-center">
             <div className="text-gray-400 mb-4">
               <Search size={64} className="mx-auto" />
@@ -1681,27 +1667,21 @@ export default function OrderScreen() {
               {t("noProducts")}
             </h3>
             <p className="text-gray-500 mb-6">
-              {lang === "en" 
-                ? "Start by adding your first menu item" 
+              {lang === "en"
+                ? "Start by adding your first menu item"
                 : "ចាប់ផ្តើមដោយបន្ថែមទំនិញដំបូងក្នុងមីនុយ"}
             </p>
-            <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto"
-              onClick={openAddItemModal}
-            >
-              <Plus size={20} />
-              {t("addNewItem")}
-            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-4 overflow-y-auto pr-2 flex-1 pb-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+          // ✅ prevent tall cards (no vertical stretching)
+          <div className="grid grid-cols-4 gap-4 items-start auto-rows-min overflow-y-auto pr-2 flex-1 pb-4">
             {filteredProducts.map((p) => (
               <div
                 key={p.id}
-                className="border rounded-xl p-3 text-center hover:shadow-lg cursor-pointer transition-all hover:scale-[1.02] relative group bg-gradient-to-b from-white to-gray-50"
+                className="border rounded-xl p-3 text-center hover:shadow-lg cursor-pointer transition-all hover:scale-[1.02] relative group bg-linear-to-b from-white to-gray-50 h-fit self-start"
               >
                 <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       openEditItemModal(p);
@@ -1711,7 +1691,7 @@ export default function OrderScreen() {
                   >
                     <Edit2 size={14} />
                   </button>
-                  <button 
+                  <button
                     onClick={(e) => handleDeleteItem(p.id, e)}
                     className="bg-red-500 text-white p-1 rounded-lg hover:bg-red-600"
                     title={t("deleteItem")}
@@ -1719,19 +1699,24 @@ export default function OrderScreen() {
                     <Trash2 size={14} />
                   </button>
                 </div>
+
                 <div>
                   <img
-                    src={p.image}
-                    alt={p.name[lang]}
+                    src={getImageUrl(p.image)}
+                    alt={p.name?.[lang]}
                     className="w-full h-24 object-cover rounded-lg mb-2 border"
                     onError={(e) => {
-                      e.target.src = "https://via.placeholder.com/300x200?text=No+Image";
+                      e.currentTarget.src =
+                        "https://placehold.co/300x200?text=Invalid+URL";
+                      e.currentTarget.onerror = null;
                     }}
                   />
                   <div className="text-sm font-semibold mb-1">
-                    {p.name[lang]}
+                    {p.name?.[lang]}
                   </div>
-                  <div className="text-green-600 font-bold">${p.price.toFixed(2)}</div>
+                  <div className="text-green-600 font-bold">
+                    ${Number(p.price).toFixed(2)}
+                  </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {lang === "en" ? p.category : translateCategory(p.category)}
                   </div>
@@ -1740,22 +1725,21 @@ export default function OrderScreen() {
                     {t("updatedOn")}: {formatDate(p.updatedAt, lang)}
                   </div>
                 </div>
-                
-                {/* Quick Add Button */}
+
                 <div className="mt-3">
                   <button
                     onClick={(e) => handleQuickAdd(p, e)}
                     disabled={quickAddProduct === p.id}
                     className={`w-full py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
                       quickAddProduct === p.id
-                        ? 'bg-green-600 text-white'
-                        : 'bg-green-500 hover:bg-green-600 text-white'
+                        ? "bg-green-600 text-white"
+                        : "bg-green-500 hover:bg-green-600 text-white"
                     }`}
                   >
                     {quickAddProduct === p.id ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        {lang === 'en' ? 'Adding...' : 'កំពុងបន្ថែម...'}
+                        {lang === "en" ? "Adding..." : "កំពុងបន្ថែម..."}
                       </>
                     ) : (
                       <>
@@ -1764,24 +1748,21 @@ export default function OrderScreen() {
                       </>
                     )}
                   </button>
-                  
-                  {/* Quantity Selector */}
+
                   <div className="flex items-center gap-1 mt-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const cartItem = items.find(item => item.id === p.id);
+                        const cartItem = items.find((it) => it.id === p.id);
                         const currentQty = cartItem ? cartItem.qty : 0;
-                        if (currentQty > 0) {
-                          updateQty(p.id, -1);
-                        }
+                        if (currentQty > 0) updateQty(p.id, -1);
                       }}
                       className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center text-gray-600"
                     >
                       <Minus size={14} />
                     </button>
                     <span className="flex-1 text-center text-sm font-medium">
-                      {items.find(item => item.id === p.id)?.qty || 0} in cart
+                      {items.find((it) => it.id === p.id)?.qty || 0} in cart
                     </span>
                     <button
                       onClick={(e) => {
@@ -1814,45 +1795,45 @@ export default function OrderScreen() {
               <ShoppingCart size={48} className="mx-auto mb-4 text-gray-300" />
               <h3 className="text-lg font-medium mb-2">{t("cartEmpty")}</h3>
               <p className="text-sm text-gray-400">
-                {lang === 'en' 
-                  ? 'Click on items to add them to your cart'
-                  : 'ចុចលើទំនិញដើម្បីបន្ថែមវាទៅក្នុងរទេះរបស់អ្នក'}
+                {lang === "en"
+                  ? "Click on items to add them to your cart"
+                  : "ចុចលើទំនិញដើម្បីបន្ថែមវាទៅក្នុងរទេះរបស់អ្នក"}
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {items.map((item, i) => (
+              {items.map((item) => (
                 <div
                   key={item.id}
                   className="grid grid-cols-3 items-center py-3 border-b hover:bg-gray-50 rounded-lg px-2"
                 >
                   <div className="flex items-center gap-3">
-                    <button 
+                    <button
                       onClick={() => {
                         if (window.confirm(t("removeFromCartConfirm"))) {
                           removeFromCart(item.id);
                         }
-                      }} 
-                      className="text-red-500 hover:text-red-700 flex-shrink-0"
+                      }}
+                      className="text-red-500 hover:text-red-700 shrink-0"
                     >
                       <Trash2 size={16} />
                     </button>
                     <span className="text-sm font-medium truncate">
-                      {item.name[lang]}
+                      {item.name?.[lang]}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-center gap-2">
-                    <button 
-                      onClick={() => updateQty(item.id, -1)} 
-                      className="w-6 h-6 border rounded flex items-center justify-center hover:bg-gray-100 flex-shrink-0"
+                    <button
+                      onClick={() => updateQty(item.id, -1)}
+                      className="w-6 h-6 border rounded flex items-center justify-center hover:bg-gray-100 shrink-0"
                     >
                       <Minus size={12} />
                     </button>
                     <span className="w-8 text-center">{item.qty}</span>
-                    <button 
-                      onClick={() => updateQty(item.id, 1)} 
-                      className="w-6 h-6 border rounded flex items-center justify-center hover:bg-gray-100 flex-shrink-0"
+                    <button
+                      onClick={() => updateQty(item.id, 1)}
+                      className="w-6 h-6 border rounded flex items-center justify-center hover:bg-gray-100 shrink-0"
                     >
                       <Plus size={12} />
                     </button>
@@ -1867,25 +1848,19 @@ export default function OrderScreen() {
           )}
         </div>
 
-        <div className="space-y-3 text-sm border-t pt-4 flex-shrink-0">
+        <div className="space-y-3 text-sm border-t pt-4 shrink-0">
           <div className="flex justify-between items-center">
             <span>{t("discount")}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={apply20PercentDiscount}
-                className="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-200 flex-shrink-0"
-              >
-                {t("apply20")}
-              </button>
-              <input
-                type="number"
-                className="w-24 border rounded px-2 py-1 text-right flex-shrink-0"
-                value={discountPercent}
-                onChange={(e) => setDiscountPercent(parseFloat(e.target.value || 0))}
-                min="0"
-                max="100"
-              />
-            </div>
+            <input
+              type="number"
+              className="w-24 border rounded px-2 py-1 text-right shrink-0"
+              value={discountPercent}
+              onChange={(e) =>
+                setDiscountPercent(parseFloat(e.target.value || 0))
+              }
+              min="0"
+              max="100"
+            />
           </div>
 
           <div className="flex justify-between">
@@ -1904,60 +1879,103 @@ export default function OrderScreen() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mt-6 flex-shrink-0">
-          <button className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 py-3 rounded-xl transition-colors">
-            <Globe size={16} />
-            <span>{t("visitSite")}</span>
-          </button>
-          <button 
+        {/* Buttons + Payment button */}
+        <div className="grid grid-cols-2 gap-3 mt-6 shrink-0">
+          <button
             className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl transition-colors"
             onClick={handleCancelOrder}
           >
             <X size={16} />
             <span>{t("cancelOrder")}</span>
           </button>
-          <button 
-            className="flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-xl transition-colors"
-            onClick={handleHoldOrder}
-          >
-            <PauseCircle size={16} />
-            <span>{t("holdOrder")}</span>
-          </button>
-          <button 
-            className="flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl transition-colors"
+
+          <button
+            className="flex items-center justify-center gap-2 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl transition-colors disabled:opacity-50"
             onClick={handleSaveOrder}
-          >
-            <Save size={16} />
-            <span>{editingOrderId ? (lang === 'en' ? 'Update Order' : 'ធ្វើបច្ចុប្បន្នភាពកម្មង់') : t("saveOrder")}</span>
-          </button>
-          <button 
-            className="col-span-2 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold transition-colors"
-            onClick={handleQRPayment}
             disabled={items.length === 0}
           >
-            <QrCode size={16} />
+            <Save size={16} />
             <span>
-              {editingOrderId ? (lang === 'en' ? 'Pay & Update' : 'បង់ និងធ្វើបច្ចុប្បន្នភាព') : t("pay")} (${totalAmount.toFixed(2)})
+              {editingOrderId
+                ? lang === "en"
+                  ? "Update Order"
+                  : "ធ្វើបច្ចុប្បន្នភាពកម្មង់"
+                : t("saveOrder")}
+            </span>
+          </button>
+
+          <button
+            className="col-span-2 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={openPaymentModal}
+            disabled={items.length === 0}
+          >
+            <CreditCard size={16} />
+            <span>
+              {t("payment")} (${totalAmount.toFixed(2)})
             </span>
           </button>
         </div>
-        
+
         {editingOrderId && (
           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center gap-2 text-yellow-800">
               <AlertCircle size={16} />
               <span className="text-sm font-medium">
-                {lang === 'en' ? 'Editing Order' : 'កំពុងកែសម្រួលកម្មង់'}
+                {lang === "en" ? "Editing Order" : "កំពុងកែសម្រួលកម្មង់"}
               </span>
             </div>
             <p className="text-xs text-yellow-600 mt-1">
-              {lang === 'en' 
-                ? 'Changes will update the existing order. Click "Cancel Order" to stop editing.' 
+              {lang === "en"
+                ? 'Changes will update the existing order. Click "Cancel Order" to stop editing.'
                 : 'ការផ្លាស់ប្តូរនឹងធ្វើបច្ចុប្បន្នភាពកម្មង់ដែលមានស្រាប់។ ចុច "បោះបង់ការកម្មង់" ដើម្បីឈប់កែសម្រួល។'}
             </p>
           </div>
         )}
       </div>
+
+      {/* CATEGORY MODAL */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold">
+                {categoryModalMode === "add"
+                  ? t("addCategory")
+                  : t("editCategory")}
+              </h2>
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <input
+              className="w-full border rounded-xl px-4 py-3 mb-4"
+              value={categoryNameInput}
+              onChange={(e) => setCategoryNameInput(e.target.value)}
+              placeholder={t("categoryName")}
+            />
+
+            <div className="flex gap-3">
+              <button
+                className="flex-1 bg-gray-100 hover:bg-gray-200 py-2 rounded-xl"
+                onClick={() => setShowCategoryModal(false)}
+              >
+                {t("cancel")}
+              </button>
+
+              <button
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl"
+                onClick={handleSaveCategory}
+              >
+                <span className="font-semibold">{t("saveOrder")}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL FOR ADD/EDIT ITEM */}
       {showItemModal && (
@@ -1965,9 +1983,11 @@ export default function OrderScreen() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-4">
               <h2 className="text-xl font-bold">
-                {modalMode === "add" ? t("addNewItemTitle") : t("editItemTitle")}
+                {modalMode === "add"
+                  ? t("addNewItemTitle")
+                  : t("editItemTitle")}
               </h2>
-              <button 
+              <button
                 onClick={() => {
                   setShowItemModal(false);
                   resetImage();
@@ -1989,13 +2009,15 @@ export default function OrderScreen() {
                   type="text"
                   className="w-full border rounded-xl px-4 py-3"
                   value={newItem.name}
-                  onChange={(e) => setNewItem({...newItem, name: e.target.value})}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, name: e.target.value })
+                  }
                   placeholder={t("enterItemName")}
                   disabled={isUploading}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {lang === "en" 
-                    ? "Name will be saved in both English and Khmer" 
+                  {lang === "en"
+                    ? "Name will be saved in both English and Khmer"
                     : "ឈ្មោះនឹងត្រូវរក្សាទុកទាំងភាសាអង់គ្លេស និងខ្មែរ"}
                 </p>
               </div>
@@ -2008,7 +2030,9 @@ export default function OrderScreen() {
                   type="number"
                   className="w-full border rounded-xl px-4 py-3"
                   value={newItem.price}
-                  onChange={(e) => setNewItem({...newItem, price: e.target.value})}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, price: e.target.value })
+                  }
                   placeholder="0.00"
                   min="0"
                   step="0.01"
@@ -2024,16 +2048,21 @@ export default function OrderScreen() {
                   <select
                     className="w-full border rounded-xl px-4 py-3 appearance-none"
                     value={newItem.category}
-                    onChange={(e) => setNewItem({...newItem, category: e.target.value})}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, category: e.target.value })
+                    }
                     disabled={isUploading}
                   >
-                    {CATEGORIES.map((c) => (
+                    {categoryOptions.map((c) => (
                       <option key={c} value={c}>
                         {lang === "en" ? c : translateCategory(c)}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                    size={20}
+                  />
                 </div>
               </div>
 
@@ -2041,11 +2070,19 @@ export default function OrderScreen() {
                 <label className="block text-sm font-medium mb-2">
                   {t("itemImage")}
                 </label>
-                
+
                 <div className="flex gap-2 mb-3">
                   <button
-                    className={`flex-1 py-2 rounded-lg ${uploadMethod === "url" ? "bg-blue-100 text-blue-600 border border-blue-300" : "bg-gray-100"}`}
-                    onClick={() => setUploadMethod("url")}
+                    type="button"
+                    className={`flex-1 py-2 rounded-lg ${
+                      uploadMethod === "url"
+                        ? "bg-blue-100 text-blue-600 border border-blue-300"
+                        : "bg-gray-100"
+                    }`}
+                    onClick={() => {
+                      setUploadMethod("url");
+                      setImageError(false);
+                    }}
                     disabled={isUploading}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -2053,9 +2090,18 @@ export default function OrderScreen() {
                       <span>{t("imageUrl")}</span>
                     </div>
                   </button>
+
                   <button
-                    className={`flex-1 py-2 rounded-lg ${uploadMethod === "file" ? "bg-blue-100 text-blue-600 border border-blue-300" : "bg-gray-100"}`}
-                    onClick={() => setUploadMethod("file")}
+                    type="button"
+                    className={`flex-1 py-2 rounded-lg ${
+                      uploadMethod === "file"
+                        ? "bg-blue-100 text-blue-600 border border-blue-300"
+                        : "bg-gray-100"
+                    }`}
+                    onClick={() => {
+                      setUploadMethod("file");
+                      setImageError(false);
+                    }}
                     disabled={isUploading}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -2071,12 +2117,15 @@ export default function OrderScreen() {
                       type="text"
                       className="w-full border rounded-xl px-4 py-3"
                       value={newItem.imageUrl}
-                      onChange={(e) => setNewItem({
-                        ...newItem, 
-                        imageUrl: e.target.value,
-                        image: null,
-                        imagePreview: null
-                      })}
+                      onChange={(e) => {
+                        setImageError(false);
+                        setNewItem({
+                          ...newItem,
+                          imageUrl: normalizeImageUrl(e.target.value),
+                          image: null,
+                          imagePreview: null,
+                        });
+                      }}
                       placeholder={t("enterImageUrl")}
                       disabled={isUploading}
                     />
@@ -2096,7 +2145,7 @@ export default function OrderScreen() {
                       onChange={handleFileUpload}
                       disabled={isUploading}
                     />
-                    
+
                     {newItem.imagePreview ? (
                       <div className="relative">
                         <img
@@ -2118,14 +2167,16 @@ export default function OrderScreen() {
                             <div className="text-white">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
                               <p className="mt-2">
-                                {lang === "en" ? "Uploading..." : "កំពុងផ្ទុក..."}
+                                {lang === "en"
+                                  ? "Uploading..."
+                                  : "កំពុងផ្ទុក..."}
                               </p>
                             </div>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div 
+                      <div
                         className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:bg-gray-50"
                         onClick={openFileInput}
                       >
@@ -2151,16 +2202,26 @@ export default function OrderScreen() {
                       alt="Preview"
                       className="w-full h-32 object-cover rounded-xl border"
                       onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/300x200?text=Invalid+Image+URL";
-                        alert(lang === "en" ? "Invalid image URL" : "URL រូបភាពមិនត្រឹមត្រូវ");
+                        setImageError(true);
+                        e.currentTarget.src =
+                          "https://placehold.co/300x200?text=No+Image";
+                        e.currentTarget.onerror = null;
                       }}
                     />
+                    {imageError && (
+                      <p className="text-xs text-red-600 mt-2">
+                        {lang === "en"
+                          ? "Cannot load image from this URL. Try another image link."
+                          : "មិនអាចបង្ហាញរូបភាពពី URL នេះបានទេ។ សូមសាកល្បង URL ផ្សេង។"}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
 
               <div className="flex gap-3 pt-4 sticky bottom-0 bg-white pb-4">
                 <button
+                  type="button"
                   className="flex-1 bg-gray-100 hover:bg-gray-200 py-3 rounded-xl font-medium transition-colors"
                   onClick={() => {
                     setShowItemModal(false);
@@ -2171,7 +2232,9 @@ export default function OrderScreen() {
                 >
                   {t("cancel")}
                 </button>
+
                 <button
+                  type="button"
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleSaveItem}
                   disabled={isUploading}
@@ -2181,8 +2244,10 @@ export default function OrderScreen() {
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       {lang === "en" ? "Saving..." : "កំពុងរក្សាទុក..."}
                     </span>
+                  ) : modalMode === "add" ? (
+                    t("addItem")
                   ) : (
-                    modalMode === "add" ? t("addItem") : t("updateItem")
+                    t("updateItem")
                   )}
                 </button>
               </div>
@@ -2196,10 +2261,8 @@ export default function OrderScreen() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 sticky top-0 bg-white pb-4">
-              <h2 className="text-xl font-bold">
-                {t("qrPaymentTitle")}
-              </h2>
-              <button 
+              <h2 className="text-xl font-bold">{t("qrPaymentTitle")}</h2>
+              <button
                 onClick={() => {
                   setShowQRModal(false);
                   setIsProcessingPayment(false);
@@ -2215,17 +2278,42 @@ export default function OrderScreen() {
               <div className="text-center">
                 <div className="mb-4">
                   <p className="text-lg font-bold mb-2">{t("paymentAmount")}</p>
-                  <p className="text-3xl font-bold text-green-600">${totalAmount.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    ${totalAmount.toFixed(2)}
+                  </p>
                   <p className="text-sm text-gray-500 mt-1">
                     {formatDate(getCurrentDate(), lang)}
                   </p>
                 </div>
-                
+
                 <div className="mb-6">
                   {renderQRCode()}
-                  <p className="text-sm text-gray-600 mt-3">
-                    {t("scanQr")}
-                  </p>
+                  <p className="text-sm text-gray-600 mt-3">{t("scanQr")}</p>
+                </div>
+                {/* Cash Input */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium mb-1">
+                    Cash Received
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full border rounded-xl px-4 py-3"
+                    placeholder="Enter cash amount"
+                    value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value)}
+                  />
+                </div>
+
+                {/* Change Display */}
+                <div className="flex justify-between font-bold text-lg mt-3">
+                  <span>Change</span>
+                  <span
+                    className={
+                      changeAmount >= 0 ? "text-green-600" : "text-red-600"
+                    }
+                  >
+                    ${changeAmount > 0 ? changeAmount.toFixed(2) : "0.00"}
+                  </span>
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded-lg mb-6">
@@ -2235,7 +2323,9 @@ export default function OrderScreen() {
                   </div>
                   <div className="flex justify-between mb-2">
                     <span>{t("discount")}</span>
-                    <span className="text-red-600">-${discountAmount.toFixed(2)}</span>
+                    <span className="text-red-600">
+                      -${discountAmount.toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between mb-2">
                     <span>{t("tax")}</span>
@@ -2272,7 +2362,11 @@ export default function OrderScreen() {
                   ) : (
                     <span className="flex items-center justify-center gap-2">
                       <CreditCard size={16} />
-                      {editingOrderId ? (lang === 'en' ? 'Update & Pay' : 'ធ្វើបច្ចុប្បន្នភាព និងបង់') : t("confirmPayment")}
+                      {editingOrderId
+                        ? lang === "en"
+                          ? "Update & Pay"
+                          : "ធ្វើបច្ចុប្បន្នភាព និងបង់"
+                        : t("confirmPayment")}
                     </span>
                   )}
                 </button>
@@ -2290,12 +2384,15 @@ export default function OrderScreen() {
               <div>
                 <h2 className="text-xl font-bold">{t("orderHistoryTitle")}</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  {lang === 'en' ? `Total Orders: ${orders.length}` : `កម្មង់សរុប: ${orders.length}`}
+                  {lang === "en"
+                    ? `Total Orders: ${orders.length}`
+                    : `កម្មង់សរុប: ${orders.length}`}
                 </p>
               </div>
+
               <div className="flex gap-2">
                 {orders.length > 0 && (
-                  <button 
+                  <button
                     onClick={printAllOrders}
                     className="bg-gray-800 hover:bg-gray-900 text-white py-2 px-4 rounded-xl font-medium flex items-center gap-2 transition-colors"
                   >
@@ -2303,7 +2400,7 @@ export default function OrderScreen() {
                     {t("printAll")}
                   </button>
                 )}
-                <button 
+                <button
                   onClick={() => setShowOrderHistory(false)}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -2312,408 +2409,207 @@ export default function OrderScreen() {
               </div>
             </div>
 
-            {/* Statistics Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-blue-600">{t("totalOrders")}</p>
-                    <p className="text-2xl font-bold text-blue-800">{orderStats.totalOrders}</p>
-                  </div>
-                  <TrendingUp size={24} className="text-blue-500" />
+            {/* Filters row */}
+            <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
+              <div className="flex gap-2 items-center flex-1 min-w-[320px]">
+                <div className="relative w-full max-w-md">
+                  <input
+                    className="w-full border rounded-xl px-4 py-3 pl-10"
+                    placeholder={t("searchOrders")}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <Search
+                    className="absolute left-3 top-3.5 text-gray-400"
+                    size={18}
+                  />
                 </div>
-                <div className="mt-2 flex text-xs text-blue-600">
-                  <span className="flex items-center mr-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                    {orderStats.paidOrders} {t("paid")}
-                  </span>
-                  <span className="flex items-center">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-1"></div>
-                    {orderStats.savedOrders} {t("saved")}
-                  </span>
-                </div>
+
+                <button
+                  className={`px-3 py-3 rounded-xl border font-medium flex items-center gap-2 ${
+                    showFilters
+                      ? "bg-blue-100 text-blue-700 border-blue-300"
+                      : "bg-gray-100"
+                  }`}
+                  onClick={() => setShowFilters((v) => !v)}
+                >
+                  <Filter size={16} />
+                  {t("filters")}
+                </button>
               </div>
-              
-              <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-green-600">{t("totalRevenue")}</p>
-                    <p className="text-2xl font-bold text-green-800">${orderStats.totalRevenue.toFixed(2)}</p>
-                  </div>
-                  <DollarSign size={24} className="text-green-500" />
-                </div>
-                <p className="text-xs text-green-600 mt-1">
-                  {lang === 'en' ? 'All time revenue' : 'ចំណូលសរុប'}
-                </p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-xl border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-purple-600">{t("averageOrder")}</p>
-                    <p className="text-2xl font-bold text-purple-800">${orderStats.averageOrder.toFixed(2)}</p>
-                  </div>
-                  <Tag size={24} className="text-purple-500" />
-                </div>
-                <p className="text-xs text-purple-600 mt-1">
-                  {lang === 'en' ? 'Per order average' : 'មធ្យមកម្មង់'}
-                </p>
-              </div>
-              
-              <div className="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-xl border border-orange-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-orange-600">{t("highestOrder")}</p>
-                    <p className="text-2xl font-bold text-orange-800">${orderStats.highestOrder.toFixed(2)}</p>
-                  </div>
-                  <TrendingUp size={24} className="text-orange-500" />
-                </div>
-                <p className="text-xs text-orange-600 mt-1">
-                  {lang === 'en' ? 'Highest single order' : 'កម្មង់ខ្ពស់ជាងគេ'}
-                </p>
+
+              <div className="flex gap-2 items-center">
+                <select
+                  className="border rounded-xl px-3 py-3"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="highest">Highest</option>
+                  <option value="lowest">Lowest</option>
+                </select>
               </div>
             </div>
 
-            {/* Search and Filter Section */}
-            <div className="mb-6 space-y-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      className="w-full border rounded-xl px-4 py-3 pl-10"
-                      placeholder={t("searchOrders")}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    <span className="text-xs text-gray-500">{t("searchById")}</span>
-                    <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-500">{t("searchByDate")}</span>
-                    <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-500">{t("searchByItem")}</span>
-                    <span className="text-xs text-gray-500">•</span>
-                    <span className="text-xs text-gray-500">{t("searchByAmount")}</span>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="bg-gray-100 hover:bg-gray-200 px-4 py-3 rounded-xl font-medium flex items-center gap-2"
+            {showFilters && (
+              <div className="bg-gray-50 border rounded-2xl p-4 mb-4">
+                <div className="flex flex-wrap gap-3 items-center">
+                  <select
+                    className="border rounded-xl px-3 py-2"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
                   >
-                    <Filter size={18} />
-                    {t("filterOrders")}
-                    {Object.values({statusFilter, paymentMethodFilter, dateRangeFilter}).some(v => v !== 'all') && (
-                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                        {Object.values({statusFilter, paymentMethodFilter, dateRangeFilter}).filter(v => v !== 'all').length}
-                      </span>
-                    )}
+                    <option value="all">{t("allStatus")}</option>
+                    <option value="paid">{t("paid")}</option>
+                    <option value="saved">{t("saved")}</option>
+                  </select>
+
+                  <button
+                    className="px-4 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 font-medium"
+                    onClick={clearHistoryFilters}
+                  >
+                    Clear
                   </button>
-                  
-                  <div className="relative">
-                    <select
-                      className="border rounded-xl px-4 py-3 appearance-none bg-white min-w-[140px]"
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                    >
-                      <option value="newest">{t("newestFirst")}</option>
-                      <option value="oldest">{t("oldestFirst")}</option>
-                      <option value="highest">{t("highestAmount")}</option>
-                      <option value="lowest">{t("lowestAmount")}</option>
-                    </select>
-                    <ChevronDown className="absolute right-3 top-3.5 text-gray-400" size={18} />
-                  </div>
+
+                  <button
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                    onClick={refreshOrders}
+                    disabled={loadingOrders}
+                  >
+                    {loadingOrders ? "Loading..." : "Refresh"}
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Filters Panel */}
-              {showFilters && (
-                <div className="bg-gray-50 border rounded-xl p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-medium">{t("filterOrders")}</h3>
-                    <button
-                      onClick={clearAllFilters}
-                      className="text-sm text-red-600 hover:text-red-700"
-                    >
-                      {t("clearFilter")}
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Status Filter */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">{t("status")}</label>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${statusFilter === 'all' ? 'bg-blue-100 text-blue-600 border border-blue-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setStatusFilter('all')}
-                        >
-                          {t("allStatus")}
-                        </button>
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${statusFilter === 'paid' ? 'bg-green-100 text-green-600 border border-green-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setStatusFilter('paid')}
-                        >
-                          {t("paid")}
-                        </button>
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${statusFilter === 'saved' ? 'bg-blue-100 text-blue-600 border border-blue-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setStatusFilter('saved')}
-                        >
-                          {t("saved")}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Payment Method Filter */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">{lang === 'en' ? 'Payment Method' : 'វិធីទូទាត់'}</label>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${paymentMethodFilter === 'all' ? 'bg-blue-100 text-blue-600 border border-blue-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setPaymentMethodFilter('all')}
-                        >
-                          {t("allPaymentMethods")}
-                        </button>
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${paymentMethodFilter === 'qr' ? 'bg-purple-100 text-purple-600 border border-purple-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setPaymentMethodFilter('qr')}
-                        >
-                          QR Payment
-                        </button>
-                        <button
-                          className={`px-3 py-2 rounded-lg text-sm ${paymentMethodFilter === 'none' ? 'bg-gray-100 text-gray-600 border border-gray-300' : 'bg-white border hover:bg-gray-50'}`}
-                          onClick={() => setPaymentMethodFilter('none')}
-                        >
-                          {lang === 'en' ? 'No Payment' : 'មិនទាន់បង់'}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* Date Range Filter */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">{t("date")}</label>
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          {['all', 'today', 'yesterday', 'thisWeek', 'thisMonth', 'lastMonth', 'custom'].map((range) => (
-                            <button
-                              key={range}
-                              className={`px-3 py-1 rounded-lg text-xs ${dateRangeFilter === range ? 'bg-blue-100 text-blue-600 border border-blue-300' : 'bg-white border hover:bg-gray-50'}`}
-                              onClick={() => setDateRangeFilter(range)}
-                            >
-                              {t(range === 'custom' ? 'customRange' : range)}
-                            </button>
-                          ))}
-                        </div>
-                        
-                        {dateRangeFilter === 'custom' && (
-                          <div className="grid grid-cols-2 gap-2 mt-2">
-                            <div>
-                              <label className="block text-xs mb-1">{t("startDate")}</label>
-                              <input
-                                type="date"
-                                className="w-full border rounded-lg px-3 py-2 text-sm"
-                                value={customStartDate}
-                                onChange={(e) => setCustomStartDate(e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs mb-1">{t("endDate")}</label>
-                              <input
-                                type="date"
-                                className="w-full border rounded-lg px-3 py-2 text-sm"
-                                value={customEndDate}
-                                onChange={(e) => setCustomEndDate(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">
-                        {lang === 'en' ? 'Showing' : 'កំពុងបង្ហាញ'} {sortedOrders.length} {lang === 'en' ? 'of' : 'ក្នុងចំណោម'} {orders.length} {lang === 'en' ? 'orders' : 'កម្មង់'}
-                      </span>
-                      <button
-                        onClick={() => setShowFilters(false)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
-                      >
-                        {t("applyFilter")}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
+            {/* Orders table */}
             {sortedOrders.length === 0 ? (
-              <div className="text-center py-12">
-                <Search size={64} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">
-                  {orders.length === 0 ? t("noOrders") : lang === 'en' ? 'No matching orders found' : 'រកមិនឃើញកម្មង់ដែលត្រូវគ្នាទេ'}
-                </h3>
-                <p className="text-gray-500 mb-6">
-                  {orders.length === 0 
-                    ? (lang === "en" 
-                        ? "Start by creating your first order" 
-                        : "ចាប់ផ្តើមដោយបង្កើតការកម្មង់ដំបូងរបស់អ្នក")
-                    : (lang === "en" 
-                        ? "Try adjusting your search or filter criteria" 
-                        : "សាកល្បងកែសម្រួលលក្ខណៈស្វែងរក ឬតម្រងរបស់អ្នក")
-                  }
-                </p>
-                {orders.length > 0 && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 mx-auto"
-                  >
-                    <Filter size={20} />
-                    {t("clearFilter")}
-                  </button>
-                )}
+              <div className="text-center py-16 text-gray-500">
+                {t("noOrders")}
               </div>
             ) : (
-              <div className="space-y-4">
-                {sortedOrders.map((order) => (
-                  <div key={order.id} className="border rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold">{t("orderId")}:</span>
-                          <span className="text-blue-600 font-mono">{order.id}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Calendar size={14} />
-                          <span>{formatDate(order.timestamp, lang)}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                            {getStatusText(order.status)}
-                          </span>
-                          {order.paymentMethod === 'qr' && (
-                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                              QR Payment
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-3 pr-3">{t("orderId")}</th>
+                      <th className="py-3 pr-3">{t("date")}</th>
+                      <th className="py-3 pr-3">{t("items")}</th>
+                      <th className="py-3 pr-3 text-right">{t("total")}</th>
+                      <th className="py-3 pr-3">{t("status")}</th>
+                      <th className="py-3 pr-3 text-right">{t("actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedOrders.map((o) => (
+                      <tr key={o.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 pr-3 font-semibold">#{o.id}</td>
+                        <td className="py-3 pr-3 text-gray-600">
+                          {formatDate(o.timestamp, lang)}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {o.items.length} item(s)
                             </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <div className="flex gap-2 mb-2">
-                          <button 
-                            onClick={() => exportOrderToCSV(order)}
-                            className="text-gray-500 hover:text-blue-600 transition-colors p-1"
-                            title={t("exportOrder")}
+                            <span className="text-xs text-gray-500 line-clamp-1">
+                              {o.items
+                                .slice(0, 3)
+                                .map((it) => it.name?.[lang] ?? "")
+                                .join(", ")}
+                              {o.items.length > 3 ? "…" : ""}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 text-right font-bold text-green-700">
+                          ${Number(o.total).toFixed(2)}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(
+                              o.status,
+                            )}`}
                           >
-                            <FileText size={18} />
-                          </button>
-                          <button 
-                            onClick={() => printOrderReceipt(order)}
-                            className="text-gray-500 hover:text-green-600 transition-colors p-1"
-                            title={t("printReceipt")}
-                          >
-                            <Printer size={18} />
-                          </button>
-                        </div>
-                        <span className="text-2xl font-bold text-green-600">
-                          ${order.total.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="col-span-2">
-                        <div className="font-medium mb-1">{t("items")}: {order.items.length}</div>
-                        <div className="text-gray-600 max-h-32 overflow-y-auto pr-2 bg-gray-50 rounded-lg p-2">
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between py-2 border-b last:border-b-0">
-                              <div className="flex-1 truncate mr-2">{item.name[lang]}</div>
-                              <div className="whitespace-nowrap text-right">
-                                <span className="text-gray-500 mr-2">
-                                  {item.qty} × ${item.price.toFixed(2)}
-                                </span>
-                                <span className="font-medium">${(item.qty * item.price).toFixed(2)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span>{t("subTotal")}:</span>
-                          <span>${order.subtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>{t("discount")}:</span>
-                          <span className="text-red-600">-${order.discount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>{t("tax")}:</span>
-                          <span>${order.tax.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold border-t pt-2 mt-2">
-                          <span>{t("total")}:</span>
-                          <span>${order.total.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-3 flex justify-between items-center">
-                      <div className="flex gap-2">
-                        {order.status === 'saved' && (
-                          <button 
-                            onClick={() => handleEditOrder(order)}
-                            className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 py-1 px-3 rounded-lg flex items-center gap-1"
-                          >
-                            <Edit2 size={14} />
-                            {t("editOrder")}
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => handleDuplicateOrder(order)}
-                          className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-800 py-1 px-3 rounded-lg flex items-center gap-1"
-                        >
-                          <Plus size={14} />
-                          {t("duplicateOrder")}
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteOrder(order.id)}
-                          className="text-sm bg-red-100 hover:bg-red-200 text-red-800 py-1 px-3 rounded-lg flex items-center gap-1"
-                        >
-                          <Trash2 size={14} />
-                          {t("deleteOrder")}
-                        </button>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {order.status === 'saved' && (
-                          <button 
-                            onClick={() => handleUpdateOrderStatus(order.id, 'paid')}
-                            className="text-sm bg-green-100 hover:bg-green-200 text-green-800 py-1 px-3 rounded-lg flex items-center gap-1"
-                          >
-                            <CreditCard size={14} />
-                            {t("markAsPaid")}
-                          </button>
-                        )}
-                        {order.status === 'paid' && (
-                          <button 
-                            onClick={() => handleUpdateOrderStatus(order.id, 'saved')}
-                            className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 py-1 px-3 rounded-lg flex items-center gap-1"
-                          >
-                            <Save size={14} />
-                            {t("markAsSaved")}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                            {getStatusText(o.status)}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            <button
+                              className="px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2"
+                              onClick={() => handleEditOrder(o)}
+                              title={t("editOrder")}
+                            >
+                              <Edit2 size={14} />
+                              {t("editOrder")}
+                            </button>
+
+                            <button
+                              className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 flex items-center gap-2"
+                              onClick={() => handleDuplicateOrder(o)}
+                              title={t("duplicateOrder")}
+                            >
+                              <Copy size={14} />
+                              {t("duplicateOrder")}
+                            </button>
+
+                            {o.status !== "paid" ? (
+                              <button
+                                className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                                onClick={() =>
+                                  handleUpdateOrderStatus(o, "paid")
+                                }
+                                title={t("markAsPaid")}
+                              >
+                                <CheckCircle2 size={14} />
+                                {t("markAsPaid")}
+                              </button>
+                            ) : (
+                              <button
+                                className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                                onClick={() =>
+                                  handleUpdateOrderStatus(o, "saved")
+                                }
+                                title={t("markAsSaved")}
+                              >
+                                <Save size={14} />
+                                {t("markAsSaved")}
+                              </button>
+                            )}
+
+                            <button
+                              className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-900 text-white flex items-center gap-2"
+                              onClick={() => printOrderReceipt(o)}
+                              title={t("printReceipt")}
+                            >
+                              <Printer size={14} />
+                              {t("printReceipt")}
+                            </button>
+
+                            <button
+                              className="px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2"
+                              onClick={() => exportOrderToCSV(o)}
+                              title={t("exportOrder")}
+                            >
+                              <FileText size={14} />
+                              {t("exportOrder")}
+                            </button>
+
+                            <button
+                              className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white flex items-center gap-2"
+                              onClick={() => handleDeleteOrder(o.id)}
+                              title={t("deleteOrder")}
+                            >
+                              <Trash2 size={14} />
+                              {t("deleteOrder")}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -2721,15 +2617,4 @@ export default function OrderScreen() {
       )}
     </div>
   );
-}
-
-function translateCategory(c) {
-  const map = {
-    Coffee: "កាហ្វេ",
-    Beverages: "ភេសជ្ជៈ",
-    BBQ: "អាំង",
-    Snacks: "អាហារសម្រន់",
-    Deserts: "នំ",
-  };
-  return map[c] || c;
 }

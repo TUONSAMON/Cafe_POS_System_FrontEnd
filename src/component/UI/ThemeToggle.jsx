@@ -1,18 +1,18 @@
 import React from 'react';
-import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import Button from './Button';
-
+import translations from '../../translations';
+import { useLang } from '../../context/LangContext';
 export default function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme();
-
+  const { lang } = useLang();
+  const t = (key) => translations[lang]?.ThemeToggle?.[key] || key;
   return (
-    <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle Theme">
-      {isDark ? (
-        <Sun className="text-amber-400" size={20} />
-      ) : (
-        <Moon className="text-slate-600" size={20} />
-      )}
-    </Button>
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 dark:text-white"
+    >
+      {isDark ? t('LightMode') : t('DarkMode')}
+    </button>
   );
 }

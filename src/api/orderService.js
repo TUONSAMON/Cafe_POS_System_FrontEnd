@@ -18,3 +18,9 @@ export async function updateOrder(id, payload) {
 export async function deleteOrder(id) {
   await api.delete(`/api/orders/${id}`);
 }
+
+
+export async function getOrderDetails(orderId) {
+  const res = await api.get(`/api/order-details/order/${orderId}`);
+  return res.data;
+}

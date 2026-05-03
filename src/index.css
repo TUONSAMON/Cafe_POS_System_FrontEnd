@@ -1,1 +1,60 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+body {
+  font-feature-settings: "tnum";
+}
+
+@keyframes cartItem {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+
+  60% {
+    transform: translateY(-2px) scale(1.02);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-cartItem {
+  animation: cartItem 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes qtyPop {
+  from {
+    transform: scale(1.35);
+    opacity: 0.6;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-qtyPop {
+  animation: qtyPop 0.18s ease-out;
+}
+
+@keyframes successPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-successPop {
+  animation: successPop 0.45s ease-out;
+}

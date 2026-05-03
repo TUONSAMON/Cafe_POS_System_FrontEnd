@@ -15,7 +15,7 @@ import {
   Languages,
   LogOut,
   Menu,
-  X
+  X,
 } from "lucide-react";
 
 export default function Layout({ children }) {
@@ -24,10 +24,7 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Desktop collapse (icon-only vs expanded)
   const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // Mobile drawer open/close
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
@@ -38,17 +35,19 @@ export default function Layout({ children }) {
   const navItems = useMemo(
     () => [
       { path: "/", icon: LayoutDashboard, label: { en: "Dashboard", km: "ផ្ទាំងគ្រប់គ្រង" } },
-      { path: "/pos", icon: ShoppingCart, label: { en: "POS", km: "ការលក់" } },
+      { path: "/pos", icon: ShoppingCart, label: { en: "Menu", km: "ផ្ទាំងទំនិញ" } },
       { path: "/tables", icon: Map, label: { en: "Tables", km: "ប្លង់តុ" } },
       { path: "/inventory", icon: Package, label: { en: "Inventory", km: "ស្តុកទំនិញ" } },
+      { path: "/ingredients", icon: Package, label: { en: "Ingredients", km: "សារធាតុ" } },
       { path: "/staff", icon: Users, label: { en: "Staff", km: "បុគ្គលិក" } },
-      { path: "/reports", icon: BarChart3, label: { en: "Reports", km: "របាយការណ៍" } }
+      { path: "/reports", icon: BarChart3, label: { en: "Reports", km: "របាយការណ៍" } },
     ],
     []
   );
 
-  const displayName = user?.fullName || user?.userName || "";
+  const displayName = user?.fullName || user?.userName || "User";
   const roleName = user?.role?.roleName || "";
+  const firstLetter = displayName?.charAt(0)?.toUpperCase() || "U";
 
   const SidebarContent = ({ onNavigate }) => (
     <>
@@ -57,13 +56,16 @@ export default function Layout({ children }) {
           <ShoppingCart size={22} strokeWidth={2.5} />
         </div>
 
-        {/* Title hidden when collapsed */}
-        <span className={`font-black text-xl dark:text-white tracking-tighter uppercase ${isCollapsed ? "hidden" : "hidden lg:block"}`}>
+        <span
+          className={`font-black text-xl dark:text-white tracking-tighter uppercase ${
+            isCollapsed ? "hidden" : "hidden lg:block"
+          }`}
+        >
           Nexus POS
         </span>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 mt-4">
+      <nav className="flex-1 px-4  space-y-2 mt-4">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -71,9 +73,11 @@ export default function Layout({ children }) {
             onClick={() => onNavigate?.()}
             className={({ isActive }) => `
               flex items-center gap-4 p-3 rounded-xl transition-all group
-              ${isActive
-                ? "active bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
-                : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}
+              ${
+                isActive
+                  ? "active bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+                  : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              }
             `}
           >
             <item.icon
@@ -81,8 +85,11 @@ export default function Layout({ children }) {
               className="transition-colors group-hover:text-indigo-500 group-[.active]:text-white"
             />
 
-            {/* Labels hidden when collapsed */}
-            <span className={`font-bold text-sm ${isCollapsed ? "hidden" : "hidden lg:block"}`}>
+            <span
+              className={`font-bold text-sm ${
+                isCollapsed ? "hidden" : "hidden lg:block"
+              }`}
+            >
               {item.label[lang]}
             </span>
           </NavLink>
@@ -91,29 +98,46 @@ export default function Layout({ children }) {
 
       <div className="p-4 border-t dark:border-slate-800 space-y-2">
         <button
+          type="button"
           onClick={() => switchLang(lang === "en" ? "km" : "en")}
           className="w-full flex items-center gap-4 p-3 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
         >
           <Languages size={22} />
-          <span className={`font-bold text-sm uppercase ${isCollapsed ? "hidden" : "hidden lg:block"}`}>{lang}</span>
+          <span
+            className={`font-bold text-sm uppercase ${
+              isCollapsed ? "hidden" : "hidden lg:block"
+            }`}
+          >
+            {lang}
+          </span>
         </button>
 
         <button
+          type="button"
           onClick={toggleTheme}
           className="w-full flex items-center gap-4 p-3 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
         >
           {isDark ? <Sun size={22} className="text-amber-400" /> : <Moon size={22} />}
-          <span className={`font-bold text-sm ${isCollapsed ? "hidden" : "hidden lg:block"}`}>
+          <span
+            className={`font-bold text-sm ${
+              isCollapsed ? "hidden" : "hidden lg:block"
+            }`}
+          >
             {isDark ? "Light" : "Dark"}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={handleLogout}
           className="w-full flex items-center gap-4 p-3 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-all"
         >
           <LogOut size={22} />
-          <span className={`font-bold text-sm ${isCollapsed ? "hidden" : "hidden lg:block"}`}>
+          <span
+            className={`font-bold text-sm ${
+              isCollapsed ? "hidden" : "hidden lg:block"
+            }`}
+          >
             {lang === "en" ? "Logout" : "ចាកចេញ"}
           </span>
         </button>
@@ -122,8 +146,11 @@ export default function Layout({ children }) {
   );
 
   return (
-    <div className={`flex h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-300 ${lang === "km" ? "font-khmer" : ""}`}>
-      {/* MOBILE OVERLAY */}
+    <div
+      className={`flex h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-300 ${
+        lang === "km" ? "font-khmer" : ""
+      }`}
+    >
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-40 lg:hidden"
@@ -131,7 +158,6 @@ export default function Layout({ children }) {
         />
       )}
 
-      {/* SIDEBAR (DESKTOP) */}
       <aside
         className={`
           hidden lg:flex
@@ -143,7 +169,6 @@ export default function Layout({ children }) {
         <SidebarContent />
       </aside>
 
-      {/* SIDEBAR (MOBILE DRAWER) */}
       <aside
         className={`
           fixed top-0 left-0 h-full w-64
@@ -154,7 +179,6 @@ export default function Layout({ children }) {
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Mobile drawer top row with close button */}
         <div className="flex items-center justify-between px-4 pt-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 shrink-0">
@@ -166,6 +190,7 @@ export default function Layout({ children }) {
           </div>
 
           <button
+            type="button"
             onClick={() => setMobileOpen(false)}
             className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
             aria-label="Close menu"
@@ -174,7 +199,6 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        {/* The same sidebar content; close drawer on navigation */}
         <div className="flex-1 flex flex-col">
           <div className="mt-2">
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
@@ -182,13 +206,11 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center justify-between px-4 md:px-8 shrink-0">
-          {/* LEFT: mobile menu + desktop collapse */}
           <div className="flex items-center gap-2">
-            {/* Mobile hamburger */}
             <button
+              type="button"
               onClick={() => setMobileOpen(true)}
               className="lg:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
               aria-label="Open menu"
@@ -196,8 +218,8 @@ export default function Layout({ children }) {
               <Menu size={22} />
             </button>
 
-            {/* Desktop collapse toggle */}
             <button
+              type="button"
               onClick={() => setIsCollapsed((v) => !v)}
               className="hidden lg:inline-flex p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
               aria-label="Toggle sidebar"
@@ -210,12 +232,11 @@ export default function Layout({ children }) {
               {new Date().toLocaleDateString(lang === "en" ? "en-US" : "km-KH", {
                 weekday: "long",
                 day: "numeric",
-                month: "long"
+                month: "long",
               })}
             </div>
           </div>
 
-          {/* RIGHT: user */}
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold dark:text-white">{displayName}</p>
@@ -224,7 +245,7 @@ export default function Layout({ children }) {
               </p>
             </div>
             <div className="w-10 h-10 bg-indigo-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-indigo-600 font-bold border dark:border-slate-700">
-              {displayName?.charAt(0)}
+              {firstLetter}
             </div>
           </div>
         </header>

@@ -1268,7 +1268,7 @@ export default function OrderScreen() {
       </head>
 
       <body>
-        <h2>RESTAURANT POS</h2>
+        <h2>Nexus Cafe</h2>
         <p>123 Main Street, Phnom Penh</p>
         <p>Tel: 012 345 678</p>
 
